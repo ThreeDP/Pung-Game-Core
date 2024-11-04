@@ -6,11 +6,11 @@ class Player:
         self.id = player_id
         self.x = x
         self.y = y
-        self.width = 100,
-        self.height = 25,
+        self.width = 25,
+        self.height = 100,
 
     def move(self, direction):
-        self.x += direction
+        self.y += direction
     
     def to_dict(self):
         return {
@@ -22,8 +22,8 @@ class Player:
 
 class Ball:
     def __init__(self):
-        self.x = 250
-        self.y = 200
+        self.x = 275
+        self.y = 275
         self.radius = 10.0
 
     def to_dict(self):
@@ -33,14 +33,14 @@ class Ball:
             "radius": self.radius,
         }
     
-player_one = Player(0, 200, 5)
-player_two = Player(1, 200, 370)
+player_one = Player(0, 50, 225)
+player_two = Player(1, 500, 225)
 ball = Ball()
 movement_map = {
-    'j': -5,
-    'k': 5,
-    'a': -5,
-    'd': 5
+    'ArrowUp': -5,
+    'ArrowDown': 5,
+    'w': -5,
+    's': 5
 }
 
 class http_consumer(AsyncWebsocketConsumer):
@@ -54,7 +54,7 @@ class http_consumer(AsyncWebsocketConsumer):
         message = text_data
 
         if message in movement_map:
-            if message in ['j', 'k']:
+            if message in ['ArrowUp', 'ArrowDown']:
                 player_two.move(movement_map[message])
             else:
                 player_one.move(movement_map[message])
