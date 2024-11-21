@@ -5,11 +5,13 @@ channels==4.1.0
 channels-redis==4.2.0
 click==8.1.7
 Django==5.1.2
+django-cors-headers==4.6.0
 exceptiongroup==1.2.2
 h11==0.14.0
 httptools==0.6.4
 idna==3.10
 msgpack==1.1.0
+psycopg2==2.9.10
 python-dotenv==1.0.1
 PyYAML==6.0.2
 redis==5.1.1
