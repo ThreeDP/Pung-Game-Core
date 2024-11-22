@@ -8,7 +8,7 @@ ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "channels",
-    "gamessesion",
+    "gamesession",
 ]
 
 MIDDLEWARE = []
