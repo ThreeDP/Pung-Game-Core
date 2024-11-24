@@ -15,6 +15,15 @@ INSTALLED_APPS = [
     'channels',
 ]
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(os.environ.get("REDIS_HOST", "localhost"), int(os.environ.get("REDIS_PORT", 6379)))],
+        },
+    },
+}
+
 MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
 ]
@@ -26,6 +35,7 @@ DATABASES = {
         'USER': os.environ.get('DB_USER', 'db_user'),
         'PASSWORD': os.environ.get('DB_PASSWORD', 'example'),
         'HOST': os.environ.get('DB_HOST', '0.0.0.0'),
+        'PORT': os.environ.get('DB_PORT', '5433'),
     }
 }
 

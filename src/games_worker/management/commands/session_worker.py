@@ -1,17 +1,16 @@
 import asyncio
 
-from games_worker.game_core.game_session import GameSession
+from games_worker.listeners.game_maker_listener import GameMakerListener
 from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = "Run the game state worker"
 
     async def send_game_state(self):
-        user_ids = ["1", "2"]  # IDs dos jogadores, por exemplo
-        game_session = GameSession(user_ids, "1234")
+        game_maker_listener = GameMakerListener()
 
         try:
-            await game_session.startGame()
+            await game_maker_listener.listen()
         except asyncio.CancelledError:
             self.stdout.write(self.style.WARNING("Worker has been stopped."))
 

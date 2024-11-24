@@ -5,7 +5,8 @@ from .game_model import GameModel
 
 class PlayerModel(models.Model):
     id = models.CharField(max_length=64, primary_key=True, editable=False, unique=True, blank=False)
-    gameId = models.ForeignKey(GameModel, on_delete=models.CASCADE)
+    gameId = models.ForeignKey(GameModel, related_name='players', on_delete=models.CASCADE)
+    color = models.CharField(max_length=64, blank=False)
     is_connected = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

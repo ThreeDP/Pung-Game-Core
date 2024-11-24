@@ -4,26 +4,30 @@ import random
 import asyncio
 
 from channels.layers import get_channel_layer
+from asgiref.sync import sync_to_async
+
 
 # Game Settings imports
 from games_worker.utils.game_config import GameConfig, GameStatus
 from games_worker.utils.ball import Ball
 from games_worker.utils.player import Player
+from games_app.models.game_model import GameModel
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
 class GameSession:
-    def __init__(self, user_ids, gameId):
+    def __init__(self, players, gameId, roomId):
         self.game_status = GameStatus.PLAYING
+        self.roomId = roomId
         self.channel_layer = get_channel_layer()
         self.tasks_movement_player = []
         self.gameId = gameId
         self.game = f"game_session_{gameId}"
         
         self.players = {}
-        for index, user_id in enumerate(user_ids):
+        for index, player in enumerate(players):
             position = GameConfig.player_positions[index]
-            self.players[user_id] = Player(user_id, position["x"], position["y"])
+            self.players[player["id"]] = Player(player["id"], player["color"], position["x"], position["y"])
 
         self.ball = Ball()
         self.ball_direction = {
@@ -79,14 +83,15 @@ class GameSession:
     async def notify_clients(self):
         response_data = {
             "ball": self.ball.to_dict(),
-            "players": {user_id: player.to_dict() for user_id, player in self.players.items()},
+            "players": {player.color: player.to_dict() for player in self.players.values()},
         }
+        json_response = json.dumps(response_data)
 
         await self.channel_layer.group_send(
             self.game,
             {
             "type": "game.update",
-            "game_state": response_data,
+            "game_state": json_response,
             "expiry": 0.02
             }
         )
@@ -111,12 +116,41 @@ class GameSession:
                 print(f"Erro ao processar mensagem: {e}")
 
     async def game_loop(self):
+        print("Game loop started")
         while True:
             await self.update_ball_position()
             await self.notify_clients()
             await asyncio.sleep(0.02)
 
+    async def send_message_game_start(self):
+        queue_name = f"room_{self.roomId[:8]}"
+        print(f"Sending message game start {queue_name}")
+        await self.channel_layer.group_send(
+            queue_name,
+            {
+            "type": "game.started",
+            "gameId": self.gameId,
+            "expiry": 0.02
+            }
+        )
+
+        game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+    
+        while True:
+            all_players_connected = 0
+            players = await sync_to_async(list)(game.players.all())
+            for player in players:
+                if player.is_connected == True:
+                    all_players_connected += 1
+            if all_players_connected == 2:
+                break
+            await asyncio.sleep(2)
+        ##game.status = 1
+        #game.save()
+
     async def startGame(self):
+        print("Game started")
         await self.add_player_channels()
-        await asyncio.create_task(self.await_for_new_match())
+        await self.send_message_game_start()
+        #await asyncio.create_task(self.await_for_new_match())
         await self.game_loop()

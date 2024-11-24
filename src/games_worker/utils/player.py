@@ -1,8 +1,9 @@
 from .game_config import GameConfig
 
 class Player:
-    def __init__(self, user_id, x, y):
+    def __init__(self, user_id, color, x, y):
         self.user_id = user_id
+        self.color = color
         self.x = x
         self.y = y
         self.width = GameConfig.player_width
