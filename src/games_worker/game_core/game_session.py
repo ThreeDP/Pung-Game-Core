@@ -168,7 +168,7 @@ class GameSession:
         await self.channel_layer.group_send(
             self.game,
             {
-            "type": "game.finished",
+            "type": "game_finished",
             "expiry": 0.02
             }
         )
