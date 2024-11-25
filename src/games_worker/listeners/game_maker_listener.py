@@ -13,10 +13,13 @@ class GameMakerListener:
     def __init__(self):
         self.game_sessions = {}
         self.queue_name = "create-game-queue"
+        self.running_tasks = set()
 
     async def create_game(self, message):
         data = json.loads(message)
-        game_session = await sync_to_async(GameModel.objects.create)(status=0, roomId=data["roomId"], created_by=data["ownerId"])
+        game_session = await sync_to_async(GameModel.objects.create)(
+            status=0, roomId=data["roomId"], created_by=data["ownerId"]
+        )
         
         players = []
         for player in data["players"]:
@@ -27,7 +30,9 @@ class GameMakerListener:
 
         game_job = GameSession(players, game_session.id, data["roomId"])
         self.game_sessions[data["roomId"]] = game_job
-        asyncio.create_task(game_job.startGame())
+        task = asyncio.create_task(game_job.startGame())
+        self.running_tasks.add(task)
+        task.add_done_callback(self.running_tasks.discard)
         return game_job
     
     async def listen(self):
@@ -37,5 +42,7 @@ class GameMakerListener:
             if message is None:
                 continue
             await self.create_game(message)
-        
 
+    async def wait_for_tasks(self):
+        if self.running_tasks:
+            await asyncio.wait(self.running_tasks)

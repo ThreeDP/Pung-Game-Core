@@ -26,6 +26,7 @@ CHANNEL_LAYERS = {
 
 MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
+    "game_project.middlewares.ExceptionMiddleware",
 ]
 
 DATABASES = {

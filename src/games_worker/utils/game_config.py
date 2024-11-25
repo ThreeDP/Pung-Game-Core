@@ -4,6 +4,8 @@ class GameConfig:
     screen_width = 850
     screen_height = 550
 
+    max_score = 2
+
     # Ball Configuration
     ball_speed = 5
     ball_size = 10

@@ -44,6 +44,19 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
             self.channel_name)
         
         await self.accept()
+
+        players = await sync_to_async(list)(game.players.all())
+
+        for player in players:
+            await self.channel_layer.group_send(
+                self.game_channel,
+                {
+                    "type": "update_score",
+                    "playerColor": player.color,
+                    "playerScore": player.score,
+                    "expiry": 0.02
+                }
+            )
         logger.info(f"| Finished | connect | User {self.userId} connected {self.gameId}.")
 
     async def disconnect(self, close_code):
@@ -75,7 +88,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         logger.info(f"Finished | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
 
     async def game_update(self, event):
-        logger.info(f"Starting | {GameSessionConsumer.__name__} | game_update | User {self.userId} received a game update for {self.gameId}.")
+        #logger.info(f"Starting | {GameSessionConsumer.__name__} | game_update | User {self.userId} received a game update for {self.gameId}.")
         
         response = json.loads(event["game_state"])
         await self.send(
@@ -84,7 +97,9 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                 "game_state": json.dumps(response)
             })
         )
-        
-        logger.info(f"Finished | {GameSessionConsumer.__name__} | game_update | User {self.userId} received a game update for {self.gameId}.")
+    
+    async def update_score(self, event):
+        await self.send(text_data=json.dumps(event))
 
-        ##logger.info(f"Finished | {GameSessionConsumer.__name__} | game_update | User {self.userId} send a movement to {self.gameId}.")
+    async def game_finished(self, event):
+        await self.send(text_data=json.dumps(event))

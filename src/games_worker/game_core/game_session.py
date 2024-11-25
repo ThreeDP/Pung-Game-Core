@@ -6,17 +6,19 @@ import asyncio
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 
-
 # Game Settings imports
 from games_worker.utils.game_config import GameConfig, GameStatus
 from games_worker.utils.ball import Ball
 from games_worker.utils.player import Player
 from games_app.models.game_model import GameModel
+from games_app.models.player_model import PlayerModel
+from games_app.models.score_model import ScoreModel
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
 class GameSession:
     def __init__(self, players, gameId, roomId):
+        self.user_session_queue = "user-session-game-queue"
         self.game_status = GameStatus.PLAYING
         self.roomId = roomId
         self.channel_layer = get_channel_layer()
@@ -74,11 +76,53 @@ class GameSession:
             
             await self.check_screen_collision(ball_y)
             await self.check_player_collision(ball_x, ball_y)
-            if self.ball.x <= 0 or self.ball.x >= GameConfig.screen_width:
-                await self.ball_reset()
-                return
+            if (await self.check_game_conditions() == True):
+                return True
 
             await self.move_ball()
+        return False
+    
+    async def check_game_conditions(self):
+        if self.ball.x <= 0 or self.ball.x >= GameConfig.screen_width:
+            color = 0
+            if self.ball.x <= 0:
+                color = 1
+            players = (list)(self.players.values())
+            player = next(filter(lambda player: player.color == color, players), None)
+
+            await self.update_score(player)
+            if any(player.score >= GameConfig.max_score for player in players):
+                return True
+            await self.ball_reset()
+            if await self.check_players_connected() == True:
+                return True
+
+        return False
+    
+    async def check_players_connected(self):
+        players = await sync_to_async(list)(PlayerModel.objects.filter(gameId=self.gameId))
+        time = 0
+        while (time < 180 and all(player.is_connected == False for player in players)):
+            await asyncio.sleep(1)
+            time += 1
+        if time >= 180:
+            return True
+        return False
+
+    async def update_score(self, player):
+        p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
+        p.score += 1
+        player.score = p.score
+        await sync_to_async(p.save)()
+        await self.channel_layer.group_send(
+            self.game,
+            {
+                "type": "update_score",
+                "playerColor": p.color,
+                "playerScore": p.score,
+                "expiry": 0.02
+            }
+        )
 
     async def notify_clients(self):
         response_data = {
@@ -105,20 +149,35 @@ class GameSession:
                 if message is None:
                     continue
                 data = json.loads(message)
-                print(f"Mensagem processada para {queue_name}: {data}")
 
                 move = data.get("move", {})
                 player.y += move["direction"] * GameConfig.player_speed
+                if player.y < 0:
+                    player.y = 0
+                elif player.y > GameConfig.screen_height - player.height:
+                    player.y = GameConfig.screen_height - player.height
 
             except json.JSONDecodeError as e:
                 print(f"Erro ao decodificar JSON: {e}")
             except Exception as e:
                 print(f"Erro ao processar mensagem: {e}")
 
+    async def finish_game(self):
+        await sync_to_async(GameModel.objects.filter(id=self.gameId).update)(status=1)
+        await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId).update)(is_connected=False)
+        await self.channel_layer.group_send(
+            self.game,
+            {
+            "type": "game.finished",
+            "expiry": 0.02
+            }
+        )
+
     async def game_loop(self):
         print("Game loop started")
         while True:
-            await self.update_ball_position()
+            if await self.update_ball_position() == True:
+                break
             await self.notify_clients()
             await asyncio.sleep(0.02)
 
@@ -145,12 +204,10 @@ class GameSession:
             if all_players_connected == 2:
                 break
             await asyncio.sleep(2)
-        ##game.status = 1
-        #game.save()
 
     async def startGame(self):
         print("Game started")
         await self.add_player_channels()
         await self.send_message_game_start()
-        #await asyncio.create_task(self.await_for_new_match())
         await self.game_loop()
+        await self.finish_game()
