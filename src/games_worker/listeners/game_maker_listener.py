@@ -1,5 +1,6 @@
 import redis
 import json
+import os
 
 from games_worker.game_core.game_session import GameSession
 from games_app.models.game_model import GameModel
@@ -7,7 +8,7 @@ from games_app.models.player_model import PlayerModel
 from asgiref.sync import sync_to_async
 import asyncio
 
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameMakerListener:
     def __init__(self):

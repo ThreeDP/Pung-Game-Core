@@ -2,6 +2,7 @@ import json
 import redis
 import random
 import asyncio
+import os
 
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
@@ -14,7 +15,8 @@ from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
     def __init__(self, players, gameId, roomId):
