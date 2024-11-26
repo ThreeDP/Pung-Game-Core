@@ -177,6 +177,8 @@ class GameSession:
 
     async def game_loop(self):
         print("Game loop started")
+        asyncio.create_task(self.await_for_new_match())
+
         while True:
             if await self.update_ball_position() == True:
                 break
