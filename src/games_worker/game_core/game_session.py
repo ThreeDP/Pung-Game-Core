@@ -14,6 +14,8 @@ from games_worker.utils.player import Player
 from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
+from django.db.models import Case, When, Value
+
 
 
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
@@ -166,7 +168,12 @@ class GameSession:
 
     async def finish_game(self):
         await sync_to_async(GameModel.objects.filter(id=self.gameId).update)(status=1)
-        await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId).update)(is_connected=False)
+        await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId).update)(
+            is_connected=False,
+            win=Case(
+                When(score__gte=GameConfig.max_score, then=2),
+                When(score__lt=GameConfig.max_score, then=1),
+        ))
         await self.channel_layer.group_send(
             self.game,
             {

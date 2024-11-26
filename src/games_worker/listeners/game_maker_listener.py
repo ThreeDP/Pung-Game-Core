@@ -25,9 +25,11 @@ class GameMakerListener:
         players = []
         for player in data["players"]:
             players.append({"id": player["id"], "color": player["color"]})
-            await sync_to_async(PlayerModel.objects.create)(id=player["id"], gameId=game_session, color=player["color"])
-        
-        await sync_to_async(game_session.save)()
+            await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
+        try:
+            await sync_to_async(game_session.save)()
+        except:
+            return
 
         game_job = GameSession(players, game_session.id, data["roomId"])
         self.game_sessions[data["roomId"]] = game_job
