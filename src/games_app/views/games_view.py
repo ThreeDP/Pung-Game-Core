@@ -11,7 +11,8 @@ class GameView(View):
         player_stats = PlayerModel.objects.values('name').annotate(
             total_points=Sum('score'),
             total_wins=Count('win', filter=Q(win=2)),
-            total_losses=Count('win', filter=Q(win=1))
+            total_losses=Count('win', filter=Q(win=1)),
+            total_draws=Count('win', filter=Q(win=0))
         ).order_by('-total_wins', '-total_points')
 
         page_number = request.GET.get('page', 1)
@@ -34,6 +35,7 @@ class GameView(View):
                 "total_points": player['total_points'],
                 "total_wins": player['total_wins'],
                 "total_losses": player['total_losses'],
+                "total_draws": player['total_draws']
             }
             for player in paginated_players
         ]

@@ -43,7 +43,8 @@ class GameSession:
 
     async def add_player_channels(self):
         for player in self.players.values():
-            self.tasks_movement_player.append(asyncio.create_task(self.process_player_move(player)))
+            task = self.tasks_movement_player.append(asyncio.create_task(self.process_player_move(player)))
+            self.tasks_movement_player.append(task)
 
     async def move_ball(self):
         self.ball.x += self.ball_direction["x"]
@@ -117,16 +118,18 @@ class GameSession:
         p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
         p.score += 1
         player.score = p.score
-        await sync_to_async(p.save)()
-        await self.channel_layer.group_send(
-            self.game,
-            {
-                "type": "update_score",
-                "playerColor": p.color,
-                "playerScore": p.score,
-                "expiry": 0.02
-            }
-        )
+        try:
+            await sync_to_async(p.save)()
+            await self.channel_layer.group_send(
+                self.game,
+                {
+                    "type": "update_score",
+                    "playerColor": p.color,
+                    "playerScore": p.score,
+                    "expiry": 0.02
+                })
+        except:
+            return
 
     async def notify_clients(self):
         response_data = {
@@ -134,20 +137,22 @@ class GameSession:
             "players": {player.color: player.to_dict() for player in self.players.values()},
         }
         json_response = json.dumps(response_data)
-
-        await self.channel_layer.group_send(
-            self.game,
-            {
-            "type": "game.update",
-            "game_state": json_response,
-            "expiry": 0.02
-            }
-        )
+        try:
+            await self.channel_layer.group_send(
+                self.game,
+                {
+                "type": "game.update",
+                "game_state": json_response,
+                "expiry": 0.02
+                })
+        except:
+            return
     
     async def process_player_move(self, player):
         queue_name = f"{self.game}_{player.user_id}"
         while True:
             await asyncio.sleep(0.005)
+
             try:
                 message = redis_client.lpop(queue_name)
                 if message is None:
@@ -174,13 +179,15 @@ class GameSession:
                 When(score__gte=GameConfig.max_score, then=2),
                 When(score__lt=GameConfig.max_score, then=1),
         ))
-        await self.channel_layer.group_send(
-            self.game,
-            {
-            "type": "game_finished",
-            "expiry": 0.02
-            }
-        )
+        try:
+            await self.channel_layer.group_send(
+                self.game,
+                {
+                    "type": "game_finished",
+                    "expiry": 0.02
+                })
+        except:
+            return
 
     async def game_loop(self):
         print("Game loop started")
@@ -195,18 +202,24 @@ class GameSession:
     async def send_message_game_start(self):
         queue_name = f"room_{self.roomId[:8]}"
         print(f"Sending message game start {queue_name}")
-        await self.channel_layer.group_send(
-            queue_name,
-            {
-            "type": "game.started",
-            "gameId": self.gameId,
-            "expiry": 0.02
-            }
-        )
+        try:
+            await self.channel_layer.group_send(
+                queue_name,
+                {
+                    "type": "game.started",
+                    "gameId": self.gameId,
+                    "expiry": 0.02
+                })
+        except:
+            return True
 
         game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
     
+        i = 180
         while True:
+            if i == 0:
+                return True
+            i -= 1
             all_players_connected = 0
             players = await sync_to_async(list)(game.players.all())
             for player in players:
@@ -215,10 +228,12 @@ class GameSession:
             if all_players_connected == 2:
                 break
             await asyncio.sleep(2)
+        return False
 
     async def startGame(self):
         print("Game started")
         await self.add_player_channels()
-        await self.send_message_game_start()
+        if (await self.send_message_game_start()):
+            return
         await self.game_loop()
         await self.finish_game()
