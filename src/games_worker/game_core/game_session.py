@@ -37,8 +37,8 @@ class GameSession:
 
         self.ball = Ball()
         self.ball_direction = {
-            "x": random.choice([-GameConfig.ball_speed, GameConfig.ball_speed]),
-            "y": random.choice([-GameConfig.ball_speed, GameConfig.ball_speed])
+            "x": GameConfig.ball_speed_x,
+            "y": GameConfig.ball_speed_y
         }
 
     async def add_player_channels(self):
@@ -51,21 +51,20 @@ class GameSession:
         self.ball.y += self.ball_direction["y"]
     
     async def check_screen_collision(self, y):
-        if y <= 0 or y >= GameConfig.screen_height:
+        if y <= -(GameConfig.field_height / 2 - GameConfig.ball_size) or y >= GameConfig.field_height / 2 - GameConfig.ball_size:
             self.ball_direction["y"] *= -1
 
     async def check_player_collision(self, x, y):
         for player in self.players.values():
-            if player.x <= x <= player.x + player.width:
-                if player.y <= y <= player.y + player.height:
-                    self.ball_direction["x"] *= -1
+            if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
+                self.ball_direction["x"] *= -1
 
     async def ball_reset(self):
-        self.ball.x = GameConfig.screen_width // 2
-        self.ball.y = GameConfig.screen_height // 2
+        self.ball.x = 0
+        self.ball.y = 0
         self.ball_direction = {
-            "x": random.choice([-GameConfig.ball_speed, GameConfig.ball_speed]),
-            "y": random.choice([-GameConfig.ball_speed, GameConfig.ball_speed])
+            "x": GameConfig.ball_speed_x,
+            "y": GameConfig.ball_speed_y
         }
         asyncio.create_task(self.await_for_new_match())
 
@@ -88,9 +87,9 @@ class GameSession:
         return False
     
     async def check_game_conditions(self):
-        if self.ball.x <= 0 or self.ball.x >= GameConfig.screen_width:
+        if (self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width):
             color = 0
-            if self.ball.x <= 0:
+            if self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width):
                 color = 1
             players = (list)(self.players.values())
             player = next(filter(lambda player: player.color == color, players), None)
@@ -161,10 +160,10 @@ class GameSession:
 
                 move = data.get("move", {})
                 player.y += move["direction"] * GameConfig.player_speed
-                if player.y < 0:
-                    player.y = 0
-                elif player.y > GameConfig.screen_height - player.height:
-                    player.y = GameConfig.screen_height - player.height
+                if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
+                    player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
+                elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
+                    player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
 
             except json.JSONDecodeError as e:
                 print(f"Erro ao decodificar JSON: {e}")

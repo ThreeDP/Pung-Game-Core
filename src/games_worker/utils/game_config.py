@@ -1,24 +1,32 @@
+import random
+
 class GameConfig:
 
     # Screen Configuration
-    screen_width = 850
-    screen_height = 550
+    screen_width = 0
+    screen_height = 0
 
-    max_score = 10
+    field_height = 60
+    field_width = 90
+
+    max_score = 10000
 
     # Ball Configuration
-    ball_speed = 5
-    ball_size = 10
+    ball_speed_x_coef = random.choice([-1, 1])
+    ball_speed_y_coef = random.choice([-1, 1])
+    ball_speed_x = ball_speed_x_coef * random.uniform(0.5, 1)
+    ball_speed_y = ball_speed_y_coef * random.uniform(0.5, 1)
+    ball_size = 2
 
     # Player Configuration
-    player_speed = 10
+    player_speed = 1
 
-    player_height = 100
-    player_width = 25
+    player_height = 16
+    player_width = 2
 
     player_positions = [
-        {"x": 25, "y": 225},
-        {"x": 800, "y": 225},
+        {"x": -44, "y": 0},
+        {"x": 44, "y": 0},
     ]
 
 class GameStatus:
