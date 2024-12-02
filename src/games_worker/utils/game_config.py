@@ -9,7 +9,7 @@ class GameConfig:
     field_height = 60
     field_width = 90
 
-    max_score = 10000
+    max_score = 10
 
     # Ball Configuration
     ball_speed_x_coef = random.choice([-1, 1])
@@ -24,9 +24,19 @@ class GameConfig:
     player_height = 16
     player_width = 2
 
+    multiplayer_height = 2
+    multiplayer_width = 16
+
     player_positions = [
         {"x": -44, "y": 0},
         {"x": 44, "y": 0},
+    ]
+
+    multiplayer_positions = [
+        {"x": -29, "y": 0},
+        {"x": 29, "y": 0},
+        {"x": 0, "y": -29},
+        {"x": 0, "y": 29},
     ]
 
 class GameStatus:

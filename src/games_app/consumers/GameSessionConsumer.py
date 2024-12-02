@@ -76,14 +76,35 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         direction = data.get('direction')
 
-        if direction in ["w", "s"]:
+        # if direction in ["w", "s"]:
+        #     move = {
+        #         "userId": self.userId,
+        #         "direction": -1 if direction == "w" else 1
+        #     }
+        #     logger.info(f"User {self.userId} moved to {move['direction']}")
+        #     message = {'type': 'player.move', "move": move}
+        #     redis_client.rpush(self.player_channel, json.dumps(message))
+
+        user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
+        directions_by_color = {
+            "0": ["w", "s"],  # Usuários com color 0
+            "1": ["w", "s"],  # Usuários com color 1
+            "2": ["a", "d"],  # Usuários com color 2
+            "3": ["a", "d"],  # Usuários com color 3
+        }
+
+        # Checa se a direção é válida para a cor do usuário
+        if user.color in directions_by_color and direction in directions_by_color[user.color]:
             move = {
                 "userId": self.userId,
-                "direction": 1 if direction == "w" else -1
+                "direction": 1 if direction in ["w", "a"] else -1
             }
             logger.info(f"User {self.userId} moved to {move['direction']}")
             message = {'type': 'player.move', "move": move}
             redis_client.rpush(self.player_channel, json.dumps(message))
+        else:
+            logger.warning(f"Invalid direction '{direction}' for user {self.userId} with color {user.color}")
+
 
         logger.info(f"Finished | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
 
