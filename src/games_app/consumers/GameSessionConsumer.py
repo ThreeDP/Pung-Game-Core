@@ -70,16 +70,23 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
             self.channel_name)
 
     async def receive(self, text_data):
-        
         logger.info(f"Stating | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
         
         data = json.loads(text_data)
         direction = data.get('direction')
 
-        if direction in ["w", "s"]:
+        user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
+        directions_by_color = {
+            "0": ["w", "s"],
+            "1": ["w", "s"],
+            "2": ["a", "d"],
+            "3": ["a", "d"],
+        }
+
+        if user.color in directions_by_color and direction in directions_by_color[user.color]:
             move = {
                 "userId": self.userId,
-                "direction": 1 if direction == "w" else -1
+                "direction": 1 if direction in ["w", "a"] else -1
             }
             logger.info(f"User {self.userId} moved to {move['direction']}")
             message = {'type': 'player.move', "move": move}

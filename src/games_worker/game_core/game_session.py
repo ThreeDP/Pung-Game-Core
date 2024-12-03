@@ -16,8 +16,6 @@ from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 from django.db.models import Case, When, Value
 
-
-
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
@@ -29,13 +27,25 @@ class GameSession:
         self.tasks_movement_player = []
         self.gameId = gameId
         self.game = f"game_session_{gameId}"
-        
+        self.numberOfPlayers = len(players)
+        self.last_player_hit = None
+
         self.players = {}
+        orientations = ["left", "right", "top", "bottom"]
         for index, player in enumerate(players):
-            position = GameConfig.player_positions[index]
-            self.players[player["id"]] = Player(player["id"], player["color"], position["x"], position["y"])
+            if self.numberOfPlayers == 2:
+                position = GameConfig.player_positions[index]
+            else:
+                position = GameConfig.multiplayer_positions[index]
+            orientation = orientations[index]
+            self.players[player["id"]] = Player(player["id"], player["color"], position["x"], position["y"], orientation)
+            if self.numberOfPlayers == 4 and index >= 2:
+                self.players[player["id"]].width = GameConfig.multiplayer_width
+                self.players[player["id"]].height = GameConfig.multiplayer_height
 
         self.ball = Ball()
+        if self.numberOfPlayers == 4:
+            self.ball.x = GameConfig.screen_height // 2
         self.ball_direction = {
             "x": GameConfig.ball_speed_x,
             "y": GameConfig.ball_speed_y
@@ -56,8 +66,22 @@ class GameSession:
 
     async def check_player_collision(self, x, y):
         for player in self.players.values():
-            if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
-                self.ball_direction["x"] *= -1
+            if player.orientation in ["left", "right"]:
+                # if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
+                if (
+                    abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
+                    and abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
+                ):
+                    self.ball_direction["x"] *= -1
+                    self.last_player_hit = player
+
+            elif player.orientation in ["top", "bottom"]:
+                if (
+                    abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
+                    and abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
+                ):
+                    self.ball_direction["y"] *= -1
+                    self.last_player_hit = player
 
     async def ball_reset(self):
         self.ball.x = 0
@@ -66,6 +90,7 @@ class GameSession:
             "x": GameConfig.ball_speed_x,
             "y": GameConfig.ball_speed_y
         }
+        self.last_player_hit = None
         asyncio.create_task(self.await_for_new_match())
 
     async def await_for_new_match(self):
@@ -78,7 +103,8 @@ class GameSession:
             ball_x = self.ball.x + self.ball_direction["x"]
             ball_y = self.ball.y + self.ball_direction["y"]
             
-            await self.check_screen_collision(ball_y)
+            if self.numberOfPlayers == 2:
+                await self.check_screen_collision(ball_y)
             await self.check_player_collision(ball_x, ball_y)
             if (await self.check_game_conditions() == True):
                 return True
@@ -88,11 +114,18 @@ class GameSession:
     
     async def check_game_conditions(self):
         if (self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width):
-            color = 0
-            if self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width):
-                color = 1
+            player = self.last_player_hit
             players = (list)(self.players.values())
-            player = next(filter(lambda player: player.color == color, players), None)
+            if player is None:
+                if self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width):
+                    color = 0
+                elif self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width:
+                    color = 1
+                elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.player_height):
+                    color = 2
+                else:
+                    color = 3
+                player = next(filter(lambda player: player.color == color, players), None)
 
             await self.update_score(player)
             if any(player.score >= GameConfig.max_score for player in players):
@@ -115,7 +148,10 @@ class GameSession:
 
     async def update_score(self, player):
         p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
-        p.score += 1
+        if self.last_player_hit is None:
+            p.score -= 1
+        else:
+            p.score += 1
         player.score = p.score
         try:
             await sync_to_async(p.save)()
@@ -134,6 +170,7 @@ class GameSession:
         response_data = {
             "ball": self.ball.to_dict(),
             "players": {player.color: player.to_dict() for player in self.players.values()},
+            "numberOfPlayers": len(self.players),
         }
         json_response = json.dumps(response_data)
         try:
@@ -159,11 +196,20 @@ class GameSession:
                 data = json.loads(message)
 
                 move = data.get("move", {})
-                player.y += move["direction"] * GameConfig.player_speed
-                if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
-                    player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
-                elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
-                    player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
+                if player.orientation == "left" or player.orientation == "right":
+                    player.y += move["direction"] * GameConfig.player_speed
+                else:
+                    player.x += move["direction"] * GameConfig.player_speed
+                if player.orientation in ["left", "right"]:
+                    if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
+                        player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
+                    elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
+                        player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
+                elif player.orientation in ["top", "bottom"]:
+                    if player.x < -(GameConfig.field_width / 2 - GameConfig.player_width / 2):
+                        player.x = -(GameConfig.field_width / 2 - GameConfig.player_width / 2)
+                    elif player.x > GameConfig.field_width / 2 - GameConfig.player_width / 2:
+                        player.x = GameConfig.field_width / 2 - GameConfig.player_width / 2
 
             except json.JSONDecodeError as e:
                 print(f"Erro ao decodificar JSON: {e}")
@@ -224,7 +270,7 @@ class GameSession:
             for player in players:
                 if player.is_connected == True:
                     all_players_connected += 1
-            if all_players_connected == 2:
+            if all_players_connected == self.numberOfPlayers:
                 break
             await asyncio.sleep(2)
         return False
