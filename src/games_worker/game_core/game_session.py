@@ -16,8 +16,6 @@ from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 from django.db.models import Case, When, Value
 
-
-
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
@@ -31,11 +29,6 @@ class GameSession:
         self.game = f"game_session_{gameId}"
         self.numberOfPlayers = len(players)
         self.last_player_hit = None
-        
-        # self.players = {}
-        # for index, player in enumerate(players):
-        #     position = GameConfig.player_positions[index]
-        #     self.players[player["id"]] = Player(player["id"], player["color"], position["x"], position["y"])
 
         self.players = {}
         orientations = ["left", "right", "top", "bottom"]
@@ -72,21 +65,23 @@ class GameSession:
             self.ball_direction["y"] *= -1
 
     async def check_player_collision(self, x, y):
-        # for player in self.players.values():
-        #     if player.x <= x <= player.x + player.width:
-        #         if player.y <= y <= player.y + player.height:
-        #             self.ball_direction["x"] *= -1
-
         for player in self.players.values():
             if player.orientation in ["left", "right"]:
-                if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
+                # if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
+                if (
+                    abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
+                    and abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
+                ):
                     self.ball_direction["x"] *= -1
                     self.last_player_hit = player
 
             elif player.orientation in ["top", "bottom"]:
-                if ((self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.player_height - GameConfig.ball_size) or self.ball.y >= GameConfig.field_height / 2 - GameConfig.player_height - GameConfig.ball_size) and self.ball.x <= player.x + GameConfig.player_width / 2 and self.ball.x >= player.x - GameConfig.player.width /2):
-                        self.ball_direction["y"] *= -1
-                        self.last_player_hit = player
+                if (
+                    abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
+                    and abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
+                ):
+                    self.ball_direction["y"] *= -1
+                    self.last_player_hit = player
 
     async def ball_reset(self):
         self.ball.x = 0
@@ -118,12 +113,6 @@ class GameSession:
         return False
     
     async def check_game_conditions(self):
-        # if self.last_player_hit is None:
-        #     players = (list)(self.players.values())
-        #     if self.ball_direction["x"] > 0:
-        #         self.last_player_hit = next(filter(lambda player: player.orientation == "left", players), None)
-        #     else:
-        #         self.last_player_hit = next(filter(lambda player: player.orientation == "right", players), None)
         if (self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width):
             player = self.last_player_hit
             players = (list)(self.players.values())
@@ -217,10 +206,6 @@ class GameSession:
                     elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
                         player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
                 elif player.orientation in ["top", "bottom"]:
-                    if player.x < 0:
-                        player.x = 0
-                    elif player.x > GameConfig.screen_height - player.width:
-                        player.x = GameConfig.screen_height - player.width
                     if player.x < -(GameConfig.field_width / 2 - GameConfig.player_width / 2):
                         player.x = -(GameConfig.field_width / 2 - GameConfig.player_width / 2)
                     elif player.x > GameConfig.field_width / 2 - GameConfig.player_width / 2:
