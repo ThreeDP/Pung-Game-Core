@@ -8,6 +8,7 @@ class GameConfig:
 
     field_height = 60
     field_width = 90
+    multiplayer_field_width = 60
 
     max_score = 10
 
@@ -19,7 +20,7 @@ class GameConfig:
     ball_size = 2
 
     # Player Configuration
-    player_speed = 1
+    player_speed = 2
 
     player_height = 16
     player_width = 2
@@ -35,8 +36,8 @@ class GameConfig:
     multiplayer_positions = [
         {"x": -29, "y": 0},
         {"x": 29, "y": 0},
-        {"x": 0, "y": -29},
         {"x": 0, "y": 29},
+        {"x": 0, "y": -29},
     ]
 
 class GameStatus:

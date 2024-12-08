@@ -86,7 +86,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         if user.color in directions_by_color and direction in directions_by_color[user.color]:
             move = {
                 "userId": self.userId,
-                "direction": 1 if direction in ["w", "a"] else -1
+                "direction": 1 if direction in ["w", "d"] else -1
             }
             logger.info(f"User {self.userId} moved to {move['direction']}")
             message = {'type': 'player.move', "move": move}

@@ -67,21 +67,31 @@ class GameSession:
     async def check_player_collision(self, x, y):
         for player in self.players.values():
             if player.orientation in ["left", "right"]:
-                # if ((self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width - GameConfig.ball_size) and self.ball.y <= player.y + GameConfig.player_height / 2 and self.ball.y >= player.y - GameConfig.player_height / 2):
                 if (
-                    abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
-                    and abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
+                    abs(self.ball.x - player.x) <= GameConfig.player_width / 2 + GameConfig.ball_size
+                    and abs(self.ball.y - player.y) <= GameConfig.player_height / 2
                 ):
                     self.ball_direction["x"] *= -1
                     self.last_player_hit = player
+                    field_width = GameConfig.field_width
+                    if self.numberOfPlayers == 4:
+                        field_width = GameConfig.multiplayer_field_width
+                    if player.orientation == "right":
+                        self.ball.x = field_width / 2 - GameConfig.player_width - GameConfig.ball_size
+                    else:
+                        self.ball.x = -(field_width / 2 - GameConfig.player_width - GameConfig.ball_size)                   
 
             elif player.orientation in ["top", "bottom"]:
                 if (
-                    abs(self.ball.y - player.y) <= (GameConfig.player_height / 2 + GameConfig.ball_size)
-                    and abs(self.ball.x - player.x) <= (GameConfig.player_width / 2 + GameConfig.ball_size)
+                    abs(self.ball.y - player.y) <= GameConfig.multiplayer_height / 2 + GameConfig.ball_size
+                    and abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2
                 ):
                     self.ball_direction["y"] *= -1
                     self.last_player_hit = player
+                    if player.orientation == "top":
+                        self.ball.y = GameConfig.field_height / 2 - GameConfig.multiplayer_height - GameConfig.ball_size
+                    else:
+                        self.ball.y = -(GameConfig.field_height / 2 - GameConfig.multiplayer_height - GameConfig.ball_size)
 
     async def ball_reset(self):
         self.ball.x = 0
@@ -113,21 +123,27 @@ class GameSession:
         return False
     
     async def check_game_conditions(self):
-        if (self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width) or self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width):
+        field_width = GameConfig.field_width
+        if self.numberOfPlayers == 4:
+            field_width = GameConfig.multiplayer_field_width
+        if (self.ball.x <= -(field_width / 2 - GameConfig.ball_size) or self.ball.x >= field_width / 2 - GameConfig.ball_size):
             player = self.last_player_hit
             players = (list)(self.players.values())
             if player is None:
-                if self.ball.x <= -(GameConfig.field_width / 2 - GameConfig.player_width):
+                if self.ball.x <= -(field_width / 2 - GameConfig.player_width):
                     color = 0
-                elif self.ball.x >= GameConfig.field_width / 2 - GameConfig.player_width:
+                elif self.ball.x >= field_width / 2 - GameConfig.player_width:
                     color = 1
-                elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.player_height):
+                elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.multiplayer_height:
                     color = 2
                 else:
                     color = 3
                 player = next(filter(lambda player: player.color == color, players), None)
-
-            await self.update_score(player)
+                for scoredPlayer in players:
+                    if scoredPlayer != player:
+                        await self.update_score(scoredPlayer)
+            else:
+                await self.update_score(player)
             if any(player.score >= GameConfig.max_score for player in players):
                 return True
             await self.ball_reset()
@@ -148,10 +164,7 @@ class GameSession:
 
     async def update_score(self, player):
         p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
-        if self.last_player_hit is None:
-            p.score -= 1
-        else:
-            p.score += 1
+        p.score += 1
         player.score = p.score
         try:
             await sync_to_async(p.save)()
@@ -171,6 +184,7 @@ class GameSession:
             "ball": self.ball.to_dict(),
             "players": {player.color: player.to_dict() for player in self.players.values()},
             "numberOfPlayers": len(self.players),
+            "fieldAttributes": {"height": GameConfig.field_height, "width": GameConfig.field_width}
         }
         json_response = json.dumps(response_data)
         try:
@@ -206,10 +220,10 @@ class GameSession:
                     elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
                         player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
                 elif player.orientation in ["top", "bottom"]:
-                    if player.x < -(GameConfig.field_width / 2 - GameConfig.player_width / 2):
-                        player.x = -(GameConfig.field_width / 2 - GameConfig.player_width / 2)
-                    elif player.x > GameConfig.field_width / 2 - GameConfig.player_width / 2:
-                        player.x = GameConfig.field_width / 2 - GameConfig.player_width / 2
+                    if player.x < -(GameConfig.field_height / 2 - GameConfig.multiplayer_width / 2):
+                        player.x = -(GameConfig.field_height / 2 - GameConfig.multiplayer_width / 2)
+                    elif player.x > GameConfig.field_height / 2 - GameConfig.multiplayer_width / 2:
+                        player.x = GameConfig.field_height / 2 - GameConfig.multiplayer_width / 2
 
             except json.JSONDecodeError as e:
                 print(f"Erro ao decodificar JSON: {e}")
