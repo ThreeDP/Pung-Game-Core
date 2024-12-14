@@ -20,7 +20,7 @@ class GameConfig:
     ball_size = 2
 
     # Player Configuration
-    player_speed = 2
+    player_speed = 4
 
     player_height = 16
     player_width = 2
