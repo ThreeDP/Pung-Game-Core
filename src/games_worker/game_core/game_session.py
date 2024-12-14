@@ -21,7 +21,7 @@ redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=
 class GameSession:
     def __init__(self, players, gameId, roomId):
         self.user_session_queue = "user-session-game-queue"
-        self.game_status = GameStatus.PLAYING
+        self.game_status = GameStatus.WAITING
         self.roomId = roomId
         self.channel_layer = get_channel_layer()
         self.tasks_movement_player = []
@@ -97,15 +97,15 @@ class GameSession:
         self.ball.x = 0
         self.ball.y = 0
         self.ball_direction = {
-            "x": GameConfig.ball_speed_x,
-            "y": GameConfig.ball_speed_y
+            "x": random.choice([-1, 1]) * rgit adandom.uniform(0.5, 1),
+            "y": random.choice([-1, 1]) * random.uniform(0.5, 1),
         }
         self.last_player_hit = None
         asyncio.create_task(self.await_for_new_match())
 
     async def await_for_new_match(self):
         self.game_status = GameStatus.WAITING
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
         self.game_status = GameStatus.PLAYING
 
     async def update_ball_position(self):
