@@ -6,11 +6,11 @@ class GameConfig:
     screen_width = 0
     screen_height = 0
 
-    field_height = 60
+    field_height = 80
     field_width = 90
-    multiplayer_field_width = 60
+    multiplayer_field_width = 80
 
-    max_score = 10
+    max_score = 1000
 
     # Ball Configuration
     ball_speed_x_coef = random.choice([-1, 1])

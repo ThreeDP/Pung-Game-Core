@@ -184,7 +184,8 @@ class GameSession:
             "ball": self.ball.to_dict(),
             "players": {player.color: player.to_dict() for player in self.players.values()},
             "numberOfPlayers": len(self.players),
-            "fieldAttributes": {"height": GameConfig.field_height, "width": GameConfig.field_width}
+            "fieldAttributes": {"height": GameConfig.field_height, "width": GameConfig.field_width},
+            "gameStatus": self.game_status,
         }
         json_response = json.dumps(response_data)
         try:
