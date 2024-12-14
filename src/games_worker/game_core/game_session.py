@@ -3,9 +3,11 @@ import redis
 import random
 import asyncio
 import os
+import logging
 
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
+from django.utils import timezone
 
 # Game Settings imports
 from games_worker.utils.game_config import GameConfig, GameStatus
@@ -15,6 +17,9 @@ from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 from django.db.models import Case, When, Value
+
+logger = logging.getLogger(__name__)
+
 
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
@@ -33,10 +38,10 @@ class GameSession:
         self.players = {}
         orientations = ["left", "right", "top", "bottom"]
         for index, player in enumerate(players):
-            if self.numberOfPlayers == 2:
-                position = GameConfig.player_positions[index]
-            else:
+            if self.numberOfPlayers == 4:
                 position = GameConfig.multiplayer_positions[index]
+            else:
+                position = GameConfig.player_positions[index]
             orientation = orientations[index]
             self.players[player["id"]] = Player(player["id"], player["color"], position["x"], position["y"], orientation)
             if self.numberOfPlayers == 4 and index >= 2:
@@ -45,7 +50,7 @@ class GameSession:
 
         self.ball = Ball()
         if self.numberOfPlayers == 4:
-            self.ball.x = GameConfig.screen_height // 2
+            self.ball.x = GameConfig.screen_height / 2
         self.ball_direction = {
             "x": GameConfig.ball_speed_x,
             "y": GameConfig.ball_speed_y
@@ -55,6 +60,32 @@ class GameSession:
         for player in self.players.values():
             task = self.tasks_movement_player.append(asyncio.create_task(self.process_player_move(player)))
             self.tasks_movement_player.append(task)
+
+    async def move_bot(self):
+        players = (list)(self.players.values())
+        player = next(filter(lambda player: player.orientation == "right", players), None)
+        direction = 0
+        while(True):
+            if self.game_status == GameStatus.PLAYING:
+                if self.ball.y > player.y:
+                    direction = 1
+                elif self.ball.y < player.y:
+                    direction = -1
+            else:
+                direction = 0
+
+            start_time = asyncio.get_event_loop().time()
+            while asyncio.get_event_loop().time() - start_time < 1:  
+                player.y += direction * GameConfig.player_speed
+                if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
+                    player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
+                elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
+                    player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
+                await asyncio.sleep(0.15)
+
+            #await asyncio.sleep(1)
+            #if abs(self.ball.y - player.y) > GameConfig.player_speed:
+            
 
     async def move_ball(self):
         self.ball.x += self.ball_direction["x"]
@@ -97,7 +128,7 @@ class GameSession:
         self.ball.x = 0
         self.ball.y = 0
         self.ball_direction = {
-            "x": random.choice([-1, 1]) * rgit adandom.uniform(0.5, 1),
+            "x": random.choice([-1, 1]) * random.uniform(0.5, 1),
             "y": random.choice([-1, 1]) * random.uniform(0.5, 1),
         }
         self.last_player_hit = None
@@ -130,13 +161,13 @@ class GameSession:
             player = self.last_player_hit
             players = (list)(self.players.values())
             if player is None:
-                if self.ball.x <= -(field_width / 2 - GameConfig.player_width):
+                if self.ball.x <= -(field_width / 2 - GameConfig.ball_size):
                     color = 0
-                elif self.ball.x >= field_width / 2 - GameConfig.player_width:
+                elif self.ball.x >= field_width / 2 - GameConfig.ball_size:
                     color = 1
-                elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.multiplayer_height:
+                elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.ball_size:
                     color = 2
-                else:
+                elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.ball_size):
                     color = 3
                 player = next(filter(lambda player: player.color == color, players), None)
                 for scoredPlayer in players:
@@ -252,6 +283,9 @@ class GameSession:
     async def game_loop(self):
         print("Game loop started")
         asyncio.create_task(self.await_for_new_match())
+        game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+        if game.isSinglePlayer is True:
+            asyncio.create_task(self.move_bot())
 
         while True:
             if await self.update_ball_position() == True:
@@ -286,6 +320,8 @@ class GameSession:
                 if player.is_connected == True:
                     all_players_connected += 1
             if all_players_connected == self.numberOfPlayers:
+                break
+            if game.isSinglePlayer == True and all_players_connected == 1:
                 break
             await asyncio.sleep(2)
         return False

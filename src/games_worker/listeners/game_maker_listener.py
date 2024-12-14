@@ -19,7 +19,7 @@ class GameMakerListener:
     async def create_game(self, message):
         data = json.loads(message)
         game_session = await sync_to_async(GameModel.objects.create)(
-            status=0, roomId=data["roomId"], created_by=data["ownerId"]
+            status=0, roomId=data["roomId"], isSinglePlayer=data["isSinglePlayer"], created_by=data["ownerId"]
         )
         
         players = []

@@ -29,15 +29,15 @@ class GameConfig:
     multiplayer_width = 16
 
     player_positions = [
-        {"x": -44, "y": 0},
-        {"x": 44, "y": 0},
+        {"x": -(field_width - player_width) / 2, "y": 0},
+        {"x": (field_width - player_width) / 2, "y": 0},
     ]
 
     multiplayer_positions = [
-        {"x": -29, "y": 0},
-        {"x": 29, "y": 0},
-        {"x": 0, "y": 29},
-        {"x": 0, "y": -29},
+        {"x": -(multiplayer_field_width - player_width) / 2, "y": 0},
+        {"x": (multiplayer_field_width - player_width) / 2, "y": 0},
+        {"x": 0, "y": (multiplayer_field_width - multiplayer_height) / 2},
+        {"x": 0, "y": -(multiplayer_field_width - multiplayer_height) / 2},
     ]
 
 class GameStatus:
