@@ -67,9 +67,11 @@ class GameSession:
 		direction = 0
 		while(True):
 			if self.game_status == GameStatus.PLAYING:
-				if self.ball.y > player.y:
+				future_y = self.ball.y + (self.ball_direction["y"] / self.ball_direction["x"]) * (player.x - self.ball.x)
+				future_y += random.uniform(-5, 5)
+				if future_y > player.y:
 					direction = 1
-				elif self.ball.y < player.y:
+				elif future_y < player.y:
 					direction = -1
 			else:
 				direction = 0
@@ -82,10 +84,6 @@ class GameSession:
 				elif player.y > GameConfig.field_height / 2 - GameConfig.player_height / 2:
 					player.y = GameConfig.field_height / 2 - GameConfig.player_height / 2
 				await asyncio.sleep(0.15)
-
-			#await asyncio.sleep(1)
-			#if abs(self.ball.y - player.y) > GameConfig.player_speed:
-			
 
 	async def move_ball(self):
 		self.ball.x += self.ball_direction["x"]
@@ -128,8 +126,8 @@ class GameSession:
 		self.ball.x = 0
 		self.ball.y = 0
 		self.ball_direction = {
-			"x": random.choice([-1, 1]) * random.uniform(0.5, 1),
-			"y": random.choice([-1, 1]) * random.uniform(0.5, 1),
+			"x": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+			"y": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
 		}
 		self.last_player_hit = None
 		asyncio.create_task(self.await_for_new_match())
