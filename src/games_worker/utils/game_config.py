@@ -10,7 +10,7 @@ class GameConfig:
 	field_width = 90
 	multiplayer_field_width = 80
 
-	max_score = 1000
+	max_score = 10
 
 	# Ball Configuration
 	speed_range_min = 0.4

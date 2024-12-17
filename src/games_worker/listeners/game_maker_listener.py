@@ -1,6 +1,7 @@
 import redis
 import json
 import os
+import logging
 
 from games_worker.game_core.game_session import GameSession
 from games_app.models.game_model import GameModel
@@ -8,18 +9,20 @@ from games_app.models.player_model import PlayerModel
 from asgiref.sync import sync_to_async
 import asyncio
 
+logger = logging.getLogger(__name__)
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameMakerListener:
     def __init__(self):
         self.game_sessions = {}
         self.queue_name = "create-game-queue"
+        self.sync_session_queue = "game-sync-session-queue"
         self.running_tasks = set()
 
     async def create_game(self, message):
         data = json.loads(message)
         game_session = await sync_to_async(GameModel.objects.create)(
-            status=0, roomId=data["roomId"], isSinglePlayer=data["isSinglePlayer"], created_by=data["ownerId"]
+            status=0, matchId=data["matchId"], roomId=data["roomId"], isSinglePlayer=data["isSinglePlayer"], created_by=data["ownerId"]
         )
         
         players = []
@@ -39,6 +42,21 @@ class GameMakerListener:
         task = asyncio.create_task(game_job.startGame())
         self.running_tasks.add(task)
         task.add_done_callback(self.running_tasks.discard)
+
+        try:
+            redis_client.rpush(
+                self.sync_session_queue,
+                json.dumps({
+                    "type": "game-created",
+                    "matchId": game_session.matchId,
+                    "gameId": game_session.id
+                })
+            )
+        except Exception as e:
+            await sync_to_async(game_session.delete)()
+            task.cancel()
+            self.running_tasks.discard(task)
+            return None
         return game_job
     
     async def listen(self):

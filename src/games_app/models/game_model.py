@@ -5,6 +5,7 @@ from django.db import models
 class GameModel(models.Model):
     id = models.CharField(max_length=64, primary_key=True, editable=False, unique=True, blank=False)
     status = models.IntegerField(default=0)
+    matchId = models.CharField(max_length=64, blank=False)
     roomId = models.CharField(max_length=64, blank=False)
     isSinglePlayer = models.BooleanField(default=False)
     created_by = models.CharField(max_length=64, blank=False)
