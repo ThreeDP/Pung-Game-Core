@@ -25,7 +25,7 @@ redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=
 
 class GameSession:
 	def __init__(self, players, gameId, roomId):
-		self.user_session_queue = "user-session-game-queue"
+		self.sync_session_queue = "game-sync-session-queue"
 		self.game_status = GameStatus.WAITING
 		self.roomId = roomId
 		self.channel_layer = get_channel_layer()
@@ -134,6 +134,15 @@ class GameSession:
 
 	async def await_for_new_match(self):
 		self.game_status = GameStatus.WAITING
+		game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+		redis_client.rpush(
+                self.sync_session_queue,
+                json.dumps({
+                    "type": "game-started",
+                    "matchId": game_session.matchId,
+                    "gameId": game_session.id
+                })
+            )
 		await asyncio.sleep(3)
 		self.game_status = GameStatus.PLAYING
 
@@ -267,21 +276,43 @@ class GameSession:
 				print(f"Erro ao processar mensagem: {e}")
 
 	async def finish_game(self):
-		await sync_to_async(GameModel.objects.filter(id=self.gameId).update)(status=1)
-		await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId).update)(
-			is_connected=False,
-			win=Case(
-				When(score__gte=GameConfig.max_score, then=2),
-				When(score__lt=GameConfig.max_score, then=1),
-		))
 		try:
+			await GameModel.objects.filter(id=self.gameId).aupdate(status=1)
+			await PlayerModel.objects.filter(gameId=self.gameId).aupdate(
+				is_connected=False,
+				win=Case(
+					When(score__gte=GameConfig.max_score, then=2),
+					When(score__lt=GameConfig.max_score, then=1),
+			))
+
+			game_session = await GameModel.objects.filter(id=self.gameId).afirst()
+			players = await sync_to_async(list)(game_session.players.all())
+			ranked_players = sorted(players, key=lambda player: (-player.score, player.id))
+			players_ranking = [
+				{"rank": rank + 1, "id": player.id, "score": player.score}
+				for rank, player in enumerate(ranked_players)
+			]
+			max_score = max(player.score for player in ranked_players)  # Maior pontuação
+
+			top_players = [player for player in ranked_players if player.score == max_score]
+			redis_client.rpush(
+                self.sync_session_queue,
+                json.dumps({
+                    "type": "game-over",
+                    "matchId": game_session.matchId,
+                    "gameId": game_session.id,
+					"winner":  top_players[0].id if len(top_players) == 1 else None,
+					"players": players_ranking
+                })
+            )
 			await self.channel_layer.group_send(
 				self.game,
 				{
 					"type": "game_finished",
 					"expiry": 0.02
 				})
-		except:
+		except Exception as e:
+			logger.error(f"Error on Finished | {GameSession.__name__} | {self.finish_game.__name__} | with error: {e}.")
 			return
 
 	async def game_loop(self):
