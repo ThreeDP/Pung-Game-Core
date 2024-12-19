@@ -6,11 +6,11 @@ from .player_model import PlayerModel
 
 class ScoreModel(models.Model):
     id = models.CharField(max_length=64, primary_key=True, editable=False, unique=True, blank=False)
-    playerId = models.ForeignKey(PlayerModel, on_delete=models.CASCADE)
-    gameId = models.ForeignKey(GameModel, on_delete=models.CASCADE)
     score = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    gameId = models.ForeignKey(GameModel, related_name="scores", on_delete=models.CASCADE)
+    playerId = models.ForeignKey(PlayerModel, related_name="scores", on_delete=models.CASCADE)
 
     def save(self, *args, **kwargs):
         self.id = self.id or str(uuid.uuid4())

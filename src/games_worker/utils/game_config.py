@@ -1,7 +1,15 @@
 import random
 
-class GameConfig:
+class playerColor(enumerate):
+	BLUE = 0
+	RED = 1
+ 
+	GREEN = 3
+	YELLOW = 4
+	WHITE = 5
+	BLACK = 6
 
+class GameConfig:
 	# Screen Configuration
 	screen_width = 0
 	screen_height = 0
@@ -10,7 +18,7 @@ class GameConfig:
 	field_width = 90
 	multiplayer_field_width = 80
 
-	max_score = 10
+	max_score = 2
 
 	# Ball Configuration
 	speed_range_min = 0.4
