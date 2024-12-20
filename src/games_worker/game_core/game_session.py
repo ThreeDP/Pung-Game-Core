@@ -17,6 +17,7 @@ from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 from django.db.models import Case, When, Value
+from games_app.repositories.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class GameSession:
 		self.game = f"game_session_{gameId}"
 		self.numberOfPlayers = len(players)
 		self.last_player_hit = None
+		self.game_repository = GameRepository()
 
 		self.players = {}
 		orientations = ["left", "right", "top", "bottom"]
@@ -196,7 +198,7 @@ class GameSession:
 		return False
 	
 	async def check_players_connected(self):
-		players = await sync_to_async(list)(PlayerModel.objects.filter(gameId=self.gameId))
+		players = await self.game_repository.GetPlayerByGameId(self.gameId)
 		time = 0
 		while (time < 180 and all(player.is_connected == False for player in players)):
 			await asyncio.sleep(1)
@@ -206,20 +208,18 @@ class GameSession:
 		return False
 
 	async def update_score(self, player):
-		p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
-		p.score += 1
-		player.score = p.score
+		player.score = await self.game_repository.UpdatePlayerScore(player.user_id, self.gameId)
 		try:
-			await sync_to_async(p.save)()
 			await self.channel_layer.group_send(
 				self.game,
 				{
 					"type": "update_score",
-					"playerColor": p.color,
-					"playerScore": p.score,
+					"playerColor": player.color,
+					"playerScore": player.score,
 					"expiry": 0.02
 				})
-		except:
+		except Exception as e:
+			logger.error(f"Error on update score | {GameSession.__name__} | {self.update_score.__name__} | with error: {e}.")
 			return
 
 	async def notify_clients(self):

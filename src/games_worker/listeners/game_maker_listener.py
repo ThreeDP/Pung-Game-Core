@@ -6,6 +6,7 @@ import logging
 from games_worker.game_core.game_session import GameSession
 from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
+from games_app.models.score_model import ScoreModel
 from asgiref.sync import sync_to_async
 import asyncio
 
@@ -29,13 +30,18 @@ class GameMakerListener:
         for player in data["players"]:
             players.append({"id": player["id"], "color": player["color"]})
             try:
-                await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
-            except:
-                return
+                py = await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
+                await sync_to_async(ScoreModel.objects.create)(playerId=py, gameId=game_session)
+            except Exception as e:
+                logger.error(f"Error creating player {player['id']}: {str(e)}")
+                await sync_to_async(game_session.delete)()
+                return None
         try:
             await sync_to_async(game_session.save)()
         except:
-            return
+            logger.error(f"Error creating player {player['id']}: {str(e)}")
+            await sync_to_async(game_session.delete)()
+            return None
 
         game_job = GameSession(players, game_session.id, data["roomId"])
         self.game_sessions[data["roomId"]] = game_job
@@ -57,6 +63,7 @@ class GameMakerListener:
             task.cancel()
             self.running_tasks.discard(task)
             return None
+
         return game_job
     
     async def listen(self):
