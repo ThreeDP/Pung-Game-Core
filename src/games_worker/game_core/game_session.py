@@ -329,7 +329,8 @@ class GameSession:
 			await asyncio.sleep(0.02)
 
 	async def send_message_game_start(self):
-		queue_name = f"room_{self.roomId[:8]}"
+		game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+		queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
 		print(f"Sending message game start {queue_name}")
 		try:
 			await self.channel_layer.group_send(
