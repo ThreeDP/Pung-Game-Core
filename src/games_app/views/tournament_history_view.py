@@ -61,7 +61,7 @@ class TournamentHistoryView(View):
         tournament_history = self.createHistoryTable(roomCode, player_name)
 
         if not tournament_history:
-            return JsonResponse({"error": "Histórico de torneio não encontrado."}, status=404)
+            tournament_history = []
 
         paginator = Paginator(tournament_history, page_size)
         try:
