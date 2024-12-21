@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
-	def __init__(self, players, gameId, roomId):
+	def __init__(self, players, gameId, roomId, roomType):
 		self.sync_session_queue = "game-sync-session-queue"
 		self.game_status = GameStatus.WAITING
 		self.roomId = roomId
+		self.roomType = roomType
 		self.channel_layer = get_channel_layer()
 		self.tasks_movement_player = []
 		self.gameId = gameId
@@ -309,6 +310,7 @@ class GameSession:
 				self.game,
 				{
 					"type": "game_finished",
+					"roomType": self.roomType,
 					"expiry": 0.02
 				})
 		except Exception as e:

@@ -43,7 +43,7 @@ class GameMakerListener:
             await sync_to_async(game_session.delete)()
             return None
 
-        game_job = GameSession(players, game_session.id, data["roomId"])
+        game_job = GameSession(players, game_session.id, data["roomId"], data["roomType"])
         self.game_sessions[data["roomId"]] = game_job
         task = asyncio.create_task(game_job.startGame())
         self.running_tasks.add(task)
