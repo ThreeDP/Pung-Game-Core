@@ -30,7 +30,9 @@ class GameMakerListener:
         for player in data["players"]:
             players.append({"id": player["id"], "color": player["color"]})
             try:
-                py = await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
+                py = await sync_to_async(PlayerModel.objects.filter(id=player["id"]).first)()
+                if (py is None):
+                    py = await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
                 await sync_to_async(ScoreModel.objects.create)(playerId=py, gameId=game_session)
             except Exception as e:
                 logger.error(f"Error creating player {player['id']}: {str(e)}")

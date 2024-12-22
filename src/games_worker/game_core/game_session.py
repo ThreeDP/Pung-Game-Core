@@ -288,21 +288,19 @@ class GameSession:
 
 			game_session = await GameModel.objects.filter(id=self.gameId).afirst()
 			players = await sync_to_async(list)(game_session.players.all())
-			ranked_players = sorted(players, key=lambda player: (-player.score, player.id))
+			ranked_players = sorted(players, key=lambda player: (player.score, player.id))
 			players_ranking = [
 				{"rank": rank + 1, "id": player.id, "score": player.score}
 				for rank, player in enumerate(ranked_players)
 			]
-			max_score = max(player.score for player in ranked_players)  # Maior pontuação
 
-			top_players = [player for player in ranked_players if player.score == max_score]
 			redis_client.rpush(
                 self.sync_session_queue,
                 json.dumps({
                     "type": "game-over",
                     "matchId": game_session.matchId,
                     "gameId": game_session.id,
-					"winner":  top_players[0].id if len(top_players) == 1 else None,
+					"winner":  players_ranking[0]["id"],
 					"players": players_ranking
                 })
             )
@@ -331,10 +329,10 @@ class GameSession:
 			await asyncio.sleep(0.02)
 
 	async def send_message_game_start(self):
-		game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-		queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
-		print(f"Sending message game start {queue_name}")
 		try:
+			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+			queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
+			print(f"Sending message game start {queue_name}")
 			await self.channel_layer.group_send(
 				queue_name,
 				{
@@ -342,7 +340,8 @@ class GameSession:
 					"gameId": self.gameId,
 					"expiry": 0.02
 				})
-		except:
+		except Exception as e:
+			logger.error(f"Error to send game started message. {e}")
 			return True
 
 		game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
@@ -365,9 +364,10 @@ class GameSession:
 		return False
 
 	async def startGame(self):
-		print("Game started")
+		logger.info(f"Stating | {self.startGame.__name__} | Room {self.roomId} | Game {self.gameId}.")
 		await self.add_player_channels()
 		if (await self.send_message_game_start()):
 			return
 		await self.game_loop()
 		await self.finish_game()
+		logger.info(f"Finished | {self.startGame.__name__} | Room {self.roomId} | Game {self.gameId}.")
