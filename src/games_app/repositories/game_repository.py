@@ -19,14 +19,14 @@ class GameRepository:
         player_score.score += 1
         await player_score.asave()
         return player_score.score
-    
+
     @sync_to_async
     def GetPlayerByGameId(self, game_id):
         try:
             game = GameModel.objects.get(id=game_id)
             return list(game.players.all())
         except Exception as e:
-            logger.error(f"{GameRepository.__name__} | {self.GetPlayerByGameId.__name__}  Error getting players by game id: {e}")
+            logging.error(f"{GameRepository.__name__} | {self.GetPlayerByGameId.__name__}  Error getting players by game id: {e}")
             return []
     # def UpdateGameStatus(self, game_id, status):
     #     game = GameModel.objects.get(id=game_id)

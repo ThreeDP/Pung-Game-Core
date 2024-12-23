@@ -18,21 +18,21 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         self.gameId = self.scope['url_route']['kwargs']['game_id']
         cookies_header = dict(self.scope['headers']).get(b'cookie', b'').decode('utf-8')
         cookies = dict(item.split("=") for item in cookies_header.split("; ") if "=" in item)
-        self.userId = cookies.get("userId")        
+        self.userId = cookies.get("userId")
         self.game_channel = f"game_session_{self.gameId}"
         self.player_channel = f"{self.game_channel}_{self.userId}"
 
-        logger.info(f"| Stating | connect | User {self.userId} connecting {self.gameId}.")
+        logger.info(f"{GameSessionConsumer.__name__} | criando conexao | User {self.userId} conectando ao game {self.gameId}.")
 
         game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
         if game is None:
-            logger.info(f"User {self.userId} disconnected from game {self.gameId} - Game not found")
+            logger.info(f"{GameSessionConsumer.__name__} | User {self.userId} disconnected from game {self.gameId} - Game not found")
             await self.close()
             return
 
         user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
         if user is None:
-            logger.info(f"User {self.userId} disconnected from game {self.gameId} - User not found")
+            logger.error(f"{GameSessionConsumer.__name__} | User {self.userId} disconnected from game {self.gameId} - User not found")
             await self.close(code="204")
             return
 
@@ -40,9 +40,9 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         await sync_to_async(user.save)()
 
         await self.channel_layer.group_add(
-            self.game_channel, 
+            self.game_channel,
             self.channel_name)
-        
+
         await self.accept()
 
         players = await sync_to_async(list)(game.players.all())
@@ -57,7 +57,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                     "expiry": 0.02
                 }
             )
-        logger.info(f"| Finished | connect | User {self.userId} connected {self.gameId}.")
+        logger.info(f"{GameSessionConsumer.__name__} | Usuario conectado com sucesso")
 
     async def disconnect(self, close_code):
         user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
@@ -67,11 +67,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_discard(
             self.game_channel,
-            self.channel_name)
+            self.channel_name
+        )
 
     async def receive(self, text_data):
-        logger.info(f"Stating | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
-        
         data = json.loads(text_data)
         direction = data.get('direction')
 
@@ -88,15 +87,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                 "userId": self.userId,
                 "direction": 1 if direction in ["w", "d"] else -1
             }
-            logger.info(f"User {self.userId} moved to {move['direction']}")
             message = {'type': 'player.move', "move": move}
             redis_client.rpush(self.player_channel, json.dumps(message))
 
-        logger.info(f"Finished | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
-
     async def game_update(self, event):
-        #logger.info(f"Starting | {GameSessionConsumer.__name__} | game_update | User {self.userId} received a game update for {self.gameId}.")
-        
         response = json.loads(event["game_state"])
         await self.send(
             text_data=json.dumps({
@@ -104,7 +98,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                 "game_state": json.dumps(response)
             })
         )
-    
+
     async def update_score(self, event):
         await self.send(text_data=json.dumps(event))
 

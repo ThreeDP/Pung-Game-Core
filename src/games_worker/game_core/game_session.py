@@ -80,7 +80,7 @@ class GameSession:
 				direction = 0
 
 			start_time = asyncio.get_event_loop().time()
-			while asyncio.get_event_loop().time() - start_time < 1:  
+			while asyncio.get_event_loop().time() - start_time < 1:
 				player.y += direction * GameConfig.player_speed
 				if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
 					player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
@@ -91,7 +91,7 @@ class GameSession:
 	async def move_ball(self):
 		self.ball.x += self.ball_direction["x"]
 		self.ball.y += self.ball_direction["y"]
-	
+
 	async def check_screen_collision(self, y):
 		if y <= -(GameConfig.field_height / 2 - GameConfig.ball_size) or y >= GameConfig.field_height / 2 - GameConfig.ball_size:
 			self.ball_direction["y"] *= -1
@@ -111,7 +111,7 @@ class GameSession:
 					if player.orientation == "right":
 						self.ball.x = field_width / 2 - GameConfig.player_width - GameConfig.ball_size
 					else:
-						self.ball.x = -(field_width / 2 - GameConfig.player_width - GameConfig.ball_size)				   
+						self.ball.x = -(field_width / 2 - GameConfig.player_width - GameConfig.ball_size)
 
 			elif player.orientation in ["top", "bottom"]:
 				if (
@@ -153,7 +153,7 @@ class GameSession:
 		if self.game_status == GameStatus.PLAYING:
 			ball_x = self.ball.x + self.ball_direction["x"]
 			ball_y = self.ball.y + self.ball_direction["y"]
-			
+
 			if self.numberOfPlayers == 2:
 				await self.check_screen_collision(ball_y)
 			await self.check_player_collision(ball_x, ball_y)
@@ -162,7 +162,7 @@ class GameSession:
 
 			await self.move_ball()
 		return False
-	
+
 	async def check_game_conditions(self):
 		field_width = GameConfig.field_width
 		if self.numberOfPlayers == 4:
@@ -197,7 +197,7 @@ class GameSession:
 				return True
 
 		return False
-	
+
 	async def check_players_connected(self):
 		players = await self.game_repository.GetPlayerByGameId(self.gameId)
 		time = 0
@@ -220,8 +220,7 @@ class GameSession:
 					"expiry": 0.02
 				})
 		except Exception as e:
-			logger.error(f"Error on update score | {GameSession.__name__} | {self.update_score.__name__} | with error: {e}.")
-			return
+			return logger.error(f"Error on update score | {GameSession.__name__} | {self.update_score.__name__} | with error: {e}.")
 
 	async def notify_clients(self):
 		response_data = {
@@ -242,8 +241,8 @@ class GameSession:
 				"expiry": 0.02
 				})
 		except:
-			return
-	
+			return logging.error(f"Error on notify clients | {GameSession.__name__} | {self.notify_clients.__name__}.")
+
 	async def process_player_move(self, player):
 		queue_name = f"{self.game}_{player.user_id}"
 		while True:
@@ -312,8 +311,7 @@ class GameSession:
 					"expiry": 0.02
 				})
 		except Exception as e:
-			logger.error(f"Error on Finished | {GameSession.__name__} | {self.finish_game.__name__} | with error: {e}.")
-			return
+			return logger.error(f"Error on Finished | {GameSession.__name__} | {self.finish_game.__name__} | with error: {e}.")
 
 	async def game_loop(self):
 		print("Game loop started")
@@ -332,7 +330,7 @@ class GameSession:
 		try:
 			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
 			queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
-			print(f"Sending message game start {queue_name}")
+			logging.info(f"\033[93mSending message game start {queue_name}\033[0m")
 			await self.channel_layer.group_send(
 				queue_name,
 				{
@@ -341,14 +339,15 @@ class GameSession:
 					"expiry": 0.02
 				})
 		except Exception as e:
-			logger.error(f"Error to send game started message. {e}")
+			logger.error(f"\033[91mError to send game started message. {e}\033[0m")
 			return True
 
 		game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-	
+
 		i = 180
 		while True:
 			if i == 0:
+				logging.error(f"Error | {GameSession.__name__} | {self.send_message_game_start.__name__} | Timeout to start game.")
 				return True
 			i -= 1
 			all_players_connected = 0
@@ -357,17 +356,19 @@ class GameSession:
 				if player.is_connected == True:
 					all_players_connected += 1
 			if all_players_connected == self.numberOfPlayers:
+				logging.info(f"Players connected | {all_players_connected}")
 				break
 			if game.isSinglePlayer == True and all_players_connected == 1:
+				logging.info(f"Players connected | {all_players_connected}")
 				break
 			await asyncio.sleep(2)
 		return False
 
 	async def startGame(self):
-		logger.info(f"Stating | {self.startGame.__name__} | Room {self.roomId} | Game {self.gameId}.")
+		logger.info(f"{self.startGame.__name__} Jogo iniciado | Room {self.roomId} | Game {self.gameId}.")
 		await self.add_player_channels()
 		if (await self.send_message_game_start()):
-			return
+			return logging.error(f"Error | {self.startGame.__name__} | {self.startGame.__name__} | Timeout to start game.")
 		await self.game_loop()
 		await self.finish_game()
-		logger.info(f"Finished | {self.startGame.__name__} | Room {self.roomId} | Game {self.gameId}.")
+		logger.info(f"{self.startGame.__name__} | Finished | Room: {self.roomId} | Game: {self.gameId}.")
