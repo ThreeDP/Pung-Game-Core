@@ -8,6 +8,7 @@ import logging
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 from django.utils import timezone
+from django.db.models import F
 
 # Game Settings imports
 from games_worker.utils.game_config import GameConfig, GameStatus
@@ -286,12 +287,33 @@ class GameSession:
 			))
 
 			game_session = await GameModel.objects.filter(id=self.gameId).afirst()
-			players = await sync_to_async(list)(game_session.players.all())
-			ranked_players = sorted(players, key=lambda player: (player.score, player.id))
+			# players = await sync_to_async(list)(game_session.players.all())
+			# ranked_players = sorted(players, key=lambda player: (player.score, player.id))
+			# players_ranking = [
+			# 	{"rank": rank + 1, "id": player.id, "score": player.score}
+			# 	for rank, player in enumerate(ranked_players)
+			# ]
+
+			player_scores = await sync_to_async(list)(
+				ScoreModel.objects.filter(gameId=self.gameId).annotate(
+					player_id=F('playerId__id'),
+					player_name=F('playerId__name')  # Caso precise do nome
+				)
+			)
+
+			# Ordenar jogadores por pontuação decrescente e ID crescente
+			ranked_players = sorted(player_scores, key=lambda ps: (-ps.score, ps.player_id))
+
+			# Criar o ranking
 			players_ranking = [
-				{"rank": rank + 1, "id": player.id, "score": player.score}
-				for rank, player in enumerate(ranked_players)
+				{"rank": rank + 1, "id": ps.player_id, "score": ps.score}
+				for rank, ps in enumerate(ranked_players)
 			]
+
+			# Determinar o vencedor
+			max_score = max(ps.score for ps in ranked_players) if ranked_players else 0
+			top_players = [ps for ps in ranked_players if ps.score == max_score]
+			winner_id = top_players[0].player_id if len(top_players) == 1 else None
 
 			redis_client.rpush(
                 self.sync_session_queue,
@@ -299,7 +321,7 @@ class GameSession:
                     "type": "game-over",
                     "matchId": game_session.matchId,
                     "gameId": game_session.id,
-					"winner":  players_ranking[0]["id"],
+					"winner":  winner_id,
 					"players": players_ranking
                 })
             )
