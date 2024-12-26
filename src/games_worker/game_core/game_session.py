@@ -330,6 +330,7 @@ class GameSession:
 				{
 					"type": "game_finished",
 					"roomType": self.roomType,
+					"winner": winner_id,
 					"expiry": 0.02
 				})
 		except Exception as e:
