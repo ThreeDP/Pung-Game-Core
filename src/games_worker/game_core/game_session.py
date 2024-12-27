@@ -137,18 +137,21 @@ class GameSession:
 		asyncio.create_task(self.await_for_new_match())
 
 	async def await_for_new_match(self):
-		self.game_status = GameStatus.WAITING
-		game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-		redis_client.rpush(
-                self.sync_session_queue,
-                json.dumps({
-                    "type": "game-started",
-                    "matchId": game_session.matchId,
-                    "gameId": game_session.id
-                })
-            )
-		await asyncio.sleep(3)
-		self.game_status = GameStatus.PLAYING
+		try:
+			self.game_status = GameStatus.WAITING
+			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+			redis_client.rpush(
+					self.sync_session_queue,
+					json.dumps({
+						"type": "game-started",
+						"matchId": game_session.matchId,
+						"gameId": game_session.id
+					})
+				)
+			await asyncio.sleep(3)
+			self.game_status = GameStatus.PLAYING
+		except Exception as e:
+			return logger.error(f"Error on await for new match | {GameSession.__name__} | {self.await_for_new_match.__name__} | with error: {e}.")
 
 	async def update_ball_position(self):
 		if self.game_status == GameStatus.PLAYING:
@@ -279,38 +282,23 @@ class GameSession:
 	async def finish_game(self):
 		try:
 			await GameModel.objects.filter(id=self.gameId).aupdate(status=1)
-			await PlayerModel.objects.filter(gameId=self.gameId).aupdate(
-				is_connected=False,
-				win=Case(
-					When(score__gte=GameConfig.max_score, then=2),
-					When(score__lt=GameConfig.max_score, then=1),
-			))
 
 			game_session = await GameModel.objects.filter(id=self.gameId).afirst()
-			# players = await sync_to_async(list)(game_session.players.all())
-			# ranked_players = sorted(players, key=lambda player: (player.score, player.id))
-			# players_ranking = [
-			# 	{"rank": rank + 1, "id": player.id, "score": player.score}
-			# 	for rank, player in enumerate(ranked_players)
-			# ]
 
 			player_scores = await sync_to_async(list)(
 				ScoreModel.objects.filter(gameId=self.gameId).annotate(
 					player_id=F('playerId__id'),
-					player_name=F('playerId__name')  # Caso precise do nome
+					player_name=F('playerId__name')
 				)
 			)
 
-			# Ordenar jogadores por pontuação decrescente e ID crescente
 			ranked_players = sorted(player_scores, key=lambda ps: (-ps.score, ps.player_id))
 
-			# Criar o ranking
 			players_ranking = [
 				{"rank": rank + 1, "id": ps.player_id, "score": ps.score}
 				for rank, ps in enumerate(ranked_players)
 			]
 
-			# Determinar o vencedor
 			max_score = max(ps.score for ps in ranked_players) if ranked_players else 0
 			top_players = [ps for ps in ranked_players if ps.score == max_score]
 			winner_id = top_players[0].player_id if len(top_players) == 1 else None
@@ -365,26 +353,29 @@ class GameSession:
 			logger.error(f"\033[91mError to send game started message. {e}\033[0m")
 			return True
 
-		game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
 
 		i = 180
 		while True:
+			scores = await GameRepository.get_players_in_game(self.gameId)
 			if i == 0:
 				logging.error(f"Error | {GameSession.__name__} | {self.send_message_game_start.__name__} | Timeout to start game.")
 				return True
 			i -= 1
 			all_players_connected = 0
-			players = await sync_to_async(list)(game.players.all())
+			players = [score.playerId for score in scores]
 			for player in players:
+				logging.info(f"Test {player} | {player.is_connected}")
 				if player.is_connected == True:
 					all_players_connected += 1
 			if all_players_connected == self.numberOfPlayers:
 				logging.info(f"Players connected | {all_players_connected}")
 				break
+			game = scores[0].gameId
 			if game.isSinglePlayer == True and all_players_connected == 1:
 				logging.info(f"Players connected | {all_players_connected}")
 				break
 			await asyncio.sleep(2)
+			logging.info(f"Players connected | {scores[0]} | {scores[1]}")
 		return False
 
 	async def startGame(self):

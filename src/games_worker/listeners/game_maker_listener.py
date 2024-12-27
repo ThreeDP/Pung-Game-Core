@@ -34,8 +34,8 @@ class GameMakerListener:
                 py = await sync_to_async(PlayerModel.objects.filter(id=player["id"]).first)()
                 if (py is None):
                     py = await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
-                logging.info(f"\033[32mPlayer: {py}\nGameSession{game_session}\033[0m")
-                await sync_to_async(ScoreModel.objects.create)(playerId=py, gameId=game_session)
+                score = await sync_to_async(ScoreModel.objects.create)(playerId=py, gameId=game_session)
+                logging.info(f"\033[32m{score}\033[0m")
             except Exception as e:
                 logger.error(f"\033[31mError creating player {player['id']}: {str(e)}\033[0m")
                 await sync_to_async(game_session.delete)()
