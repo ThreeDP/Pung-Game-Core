@@ -203,9 +203,12 @@ class GameSession:
 		return False
 
 	async def check_players_connected(self):
-		players = await self.game_repository.GetPlayerByGameId(self.gameId)
 		time = 0
-		while (time < 180 and all(player.is_connected == False for player in players)):
+		while True:
+			scores = await GameRepository.get_players_in_game(self.gameId)
+			players = [score.playerId for score in scores]
+			if all(player.is_connected for player in players) or time >= 180:
+				break
 			await asyncio.sleep(1)
 			time += 1
 		if time >= 180:
