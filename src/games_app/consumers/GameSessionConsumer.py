@@ -7,6 +7,8 @@ from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
+from games_app.models.score_model import ScoreModel
+from games_app.repositories.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
@@ -18,37 +20,32 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         self.gameId = self.scope['url_route']['kwargs']['game_id']
         cookies_header = dict(self.scope['headers']).get(b'cookie', b'').decode('utf-8')
         cookies = dict(item.split("=") for item in cookies_header.split("; ") if "=" in item)
-        self.userId = cookies.get("userId")        
+        self.userId = cookies.get("userId")
         self.game_channel = f"game_session_{self.gameId}"
         self.player_channel = f"{self.game_channel}_{self.userId}"
 
-        logger.info(f"| Stating | connect | User {self.userId} connecting {self.gameId}.")
+        logger.info(f"{GameSessionConsumer.__name__} | criando conexao | User {self.userId} conectando ao game {self.gameId}.")
 
-        game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-        if game is None:
-            logger.info(f"User {self.userId} disconnected from game {self.gameId} - Game not found")
-            await self.close()
-            return
+        try:
+            user = await GameRepository.get_player_by_id_and_by_game_id(self.userId, self.gameId)
+            if user is None:
+                logger.info(f"{self.__class__.__name__} | User {self.userId} disconnected from game {self.gameId} - User not found.")
+                await self.close(code=204)
+                return
 
-        user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
-        if user is None:
-            logger.info(f"User {self.userId} disconnected from game {self.gameId} - User not found")
-            await self.close(code="204")
-            return
+            await GameRepository.update_player_connected_status(user.id, True)
 
-        user.is_connected = True
-        await sync_to_async(user.save)()
+            await self.channel_layer.group_add(
+                self.game_channel,
+                self.channel_name
+            )
 
-        await self.channel_layer.group_add(
-            self.game_channel, 
-            self.channel_name)
-        
-        await self.accept()
+            await self.accept()
 
-        players = await sync_to_async(list)(game.players.all())
-
-        for player in players:
-            await self.channel_layer.group_send(
+            scores = await GameRepository.get_players_in_game(self.gameId)
+            players = [score.playerId for score in scores]
+            for player in players:
+                await self.channel_layer.group_send(
                 self.game_channel,
                 {
                     "type": "update_score",
@@ -56,26 +53,28 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                     "playerScore": player.score,
                     "expiry": 0.02
                 }
-            )
-        logger.info(f"| Finished | connect | User {self.userId} connected {self.gameId}.")
+                )
+            logger.info(f"{GameSessionConsumer.__name__} | Usuario conectado com sucesso")
+        except Exception as e:
+            logger.error(f"{GameSessionConsumer.__name__} | Error | {e}")
+            await self.close()
 
     async def disconnect(self, close_code):
-        user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
-        if user:
-            user.is_connected = False
-            await sync_to_async(user.save)()
-
+        user = await GameRepository.get_player_by_id_and_by_game_id(self.userId, self.gameId)
+        if user is not None:
+            await GameRepository.update_player_connected_status(user.id, False)
+        
         await self.channel_layer.group_discard(
             self.game_channel,
-            self.channel_name)
+            self.channel_name
+        )
 
     async def receive(self, text_data):
-        logger.info(f"Stating | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
-        
         data = json.loads(text_data)
         direction = data.get('direction')
 
-        user = await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId, id=self.userId).first)()
+        user = await GameRepository.get_player_by_id_and_by_game_id(self.userId, self.gameId)
+
         directions_by_color = {
             "0": ["w", "s"],
             "1": ["w", "s"],
@@ -88,15 +87,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                 "userId": self.userId,
                 "direction": 1 if direction in ["w", "d"] else -1
             }
-            logger.info(f"User {self.userId} moved to {move['direction']}")
             message = {'type': 'player.move', "move": move}
             redis_client.rpush(self.player_channel, json.dumps(message))
 
-        logger.info(f"Finished | {GameSessionConsumer.__name__} | receive | User {self.userId} send a movement to {self.gameId}.")
-
     async def game_update(self, event):
-        #logger.info(f"Starting | {GameSessionConsumer.__name__} | game_update | User {self.userId} received a game update for {self.gameId}.")
-        
         response = json.loads(event["game_state"])
         await self.send(
             text_data=json.dumps({
@@ -104,7 +98,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
                 "game_state": json.dumps(response)
             })
         )
-    
+
     async def update_score(self, event):
         await self.send(text_data=json.dumps(event))
 

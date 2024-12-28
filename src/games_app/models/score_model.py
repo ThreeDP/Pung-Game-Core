@@ -13,7 +13,7 @@ class ScoreModel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Score {self.id} - Player: {self.playerId.id} - Score: {self.score}"
+        return f"Score {self.id} | Game: {self.gameId} | Player: {self.playerId} | Score: {self.score}"
 
     class Meta:
         db_table = 'Scores'

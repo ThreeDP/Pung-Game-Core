@@ -1,4 +1,4 @@
-import asyncio
+import asyncio, logging
 
 from games_worker.listeners.game_maker_listener import GameMakerListener
 from django.core.management.base import BaseCommand
@@ -12,19 +12,19 @@ class Command(BaseCommand):
         try:
             await game_maker_listener.listen()
         except KeyboardInterrupt:
-            self.stdout.write(self.style.WARNING("Worker has been stopped. Waiting for pending tasks..."))
+            logging.warning("\033[33mWorker has been stopped. Waiting for pending tasks...\033[0m")
             await game_maker_listener.wait_for_tasks()
-            self.stdout.write(self.style.SUCCESS("All tasks have been completed."))
+            logging.warning("\033[33mAll tasks have been completed.\033[0m")
         except asyncio.CancelledError:
-            self.stdout.write(self.style.WARNING("Worker has been stopped."))
+            logging.warning("\033[33mWorker has been stopped.\033[0m")
             await game_maker_listener.wait_for_tasks()
 
     def handle(self, *args, **kwargs):
-        self.stdout.write(self.style.SUCCESS("Starting game state worker..."))
+        logging.warning("\033[33mStarting game state worker...\033[0m")
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(self.send_game_state())
             loop.run_forever()
         except KeyboardInterrupt:
-            self.stdout.write(self.style.WARNING("Worker has been stopped."))
+            logging.warning("\033[33mWorker has been stopped.\033[0m")
             loop.stop()

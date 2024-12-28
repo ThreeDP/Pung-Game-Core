@@ -5,7 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY="093t!^%s@qn1lazs4donw)oh9z&x9os!+9l&_lk9)4mmji8)1)"
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 

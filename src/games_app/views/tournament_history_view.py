@@ -37,11 +37,13 @@ class TournamentHistoryView(View):
                     playerColor.RED: {
                         "name": red_player.name,
                         "score": red_score,
+                        "color": red_player.color,
                         # "profileImage": red_player.profileImage
                     },
                     playerColor.BLUE: {
                         "name": blue_player.name,
                         "score": blue_score,
+                        "color": blue_player.color,
                         # "profileImage": blue_player.profileImage
                     }
                 })
