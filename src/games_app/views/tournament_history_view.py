@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.db.models import Prefetch
 from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
+from games_app.models.score_model import ScoreModel
 from games_worker.utils.game_config import playerColor
 
 
@@ -16,39 +17,41 @@ class TournamentHistoryView(View):
         history = []
         games = GameModel.objects.filter(roomId__startswith=roomCode)
         if player_name:
-            games = games.filter(players__name=player_name).distinct()
+            games = games.filter(scores__playerId__name=player_name).distinct()
 
         games = games.prefetch_related(
-            Prefetch('players', queryset=PlayerModel.objects.all()),
+            Prefetch('scores', queryset=ScoreModel.objects.select_related('playerId').all())
         )
 
-
+        logger.info(f"\n\n\nNumber of games found: {games.count()}")
         for game in games:
-            red_player = game.players.filter(color=playerColor.RED).first()
-            blue_player = game.players.filter(color=playerColor.BLUE).first()
-            if red_player and blue_player:
-                red_score = red_player.scores.filter(gameId=game).first()
-                blue_score = blue_player.scores.filter(gameId=game).first()
-                red_score = red_score.score if red_score else 0
-                blue_score = blue_score.score if blue_score else 0
+            logger.info(f"\n\n\nGame: {game}\n")
+            scores = game.scores.all()
+            if scores.count() >= 2:
+                red_score = scores.first()
+                blue_score = scores.last()
+                red_player = red_score.playerId
+                blue_player = blue_score.playerId
+                red_score_value = red_score.score if red_score else 0
+                blue_score_value = blue_score.score if blue_score else 0
 
-                winner = playerColor.RED if red_score > blue_score else playerColor.BLUE
+                winner = playerColor.RED if red_score_value > blue_score_value else playerColor.BLUE
                 history.append({
                     "winner": winner,
                     playerColor.RED: {
                         "name": red_player.name,
-                        "score": red_score,
+                        "score": red_score_value,
                         "color": red_player.color,
                         # "profileImage": red_player.profileImage
                     },
                     playerColor.BLUE: {
                         "name": blue_player.name,
-                        "score": blue_score,
+                        "score": blue_score_value,
                         "color": blue_player.color,
                         # "profileImage": blue_player.profileImage
                     }
                 })
-
+        logger.info(f"\nHistory: {history}\nNumbers of games: {len(history)}\n\n\n\n")
         return history
 
 
