@@ -9,6 +9,7 @@ import math
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 from django.utils import timezone
+from django.db.models import F
 
 # Game Settings imports
 from games_worker.utils.game_config import GameConfig, GameStatus
@@ -18,6 +19,7 @@ from games_app.models.game_model import GameModel
 from games_app.models.player_model import PlayerModel
 from games_app.models.score_model import ScoreModel
 from django.db.models import Case, When, Value
+from games_app.repositories.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +27,18 @@ logger = logging.getLogger(__name__)
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
-	def __init__(self, players, gameId, roomId):
-		self.user_session_queue = "user-session-game-queue"
+	def __init__(self, players, gameId, roomId, roomType):
+		self.sync_session_queue = "game-sync-session-queue"
 		self.game_status = GameStatus.WAITING
 		self.roomId = roomId
+		self.roomType = roomType
 		self.channel_layer = get_channel_layer()
 		self.tasks_movement_player = []
 		self.gameId = gameId
 		self.game = f"game_session_{gameId}"
 		self.numberOfPlayers = len(players)
 		self.last_player_hit = None
+		self.game_repository = GameRepository()
 
 		self.players = {}
 		orientations = ["left", "right", "top", "bottom"]
@@ -78,7 +82,7 @@ class GameSession:
 				direction = 0
 
 			start_time = asyncio.get_event_loop().time()
-			while asyncio.get_event_loop().time() - start_time < 1:  
+			while asyncio.get_event_loop().time() - start_time < 1:
 				player.y += direction * GameConfig.player_speed
 				if player.y < -(GameConfig.field_height / 2 - GameConfig.player_height / 2):
 					player.y = -(GameConfig.field_height / 2 - GameConfig.player_height / 2)
@@ -89,7 +93,7 @@ class GameSession:
 	async def move_ball(self):
 		self.ball.x += self.ball_direction["x"]
 		self.ball.y += self.ball_direction["y"]
-	
+
 	async def check_screen_collision(self, y):
 		if y <= -(GameConfig.field_height / 2 - GameConfig.ball_size) or y >= GameConfig.field_height / 2 - GameConfig.ball_size:
 			self.ball_direction["y"] *= -1
@@ -154,7 +158,7 @@ class GameSession:
 		if self.game_status == GameStatus.PLAYING:
 			ball_x = self.ball.x + self.ball_direction["x"]
 			ball_y = self.ball.y + self.ball_direction["y"]
-			
+
 			if self.numberOfPlayers == 2:
 				await self.check_screen_collision(ball_y)
 			await self.check_player_collision(ball_x, ball_y)
@@ -163,7 +167,7 @@ class GameSession:
 
 			await self.move_ball()
 		return False
-	
+
 	async def check_game_conditions(self):
 		field_width = GameConfig.field_width
 		if self.numberOfPlayers == 4:
@@ -198,11 +202,14 @@ class GameSession:
 				return True
 
 		return False
-	
+
 	async def check_players_connected(self):
-		players = await sync_to_async(list)(PlayerModel.objects.filter(gameId=self.gameId))
 		time = 0
-		while (time < 180 and all(player.is_connected == False for player in players)):
+		while True:
+			scores = await GameRepository.get_players_in_game(self.gameId)
+			players = [score.playerId for score in scores]
+			if all(player.is_connected for player in players) or time >= 180:
+				break
 			await asyncio.sleep(1)
 			time += 1
 		if time >= 180:
@@ -210,21 +217,18 @@ class GameSession:
 		return False
 
 	async def update_score(self, player):
-		p = await sync_to_async(PlayerModel.objects.filter(id=player.user_id).first)()
-		p.score += 1
-		player.score = p.score
+		player.score = await self.game_repository.UpdatePlayerScore(player.user_id, self.gameId)
 		try:
-			await sync_to_async(p.save)()
 			await self.channel_layer.group_send(
 				self.game,
 				{
 					"type": "update_score",
-					"playerColor": p.color,
-					"playerScore": p.score,
+					"playerColor": player.color,
+					"playerScore": player.score,
 					"expiry": 0.02
 				})
-		except:
-			return
+		except Exception as e:
+			return logger.error(f"Error on update score | {GameSession.__name__} | {self.update_score.__name__} | with error: {e}.")
 
 	async def notify_clients(self):
 		response_data = {
@@ -245,8 +249,8 @@ class GameSession:
 				"expiry": 0.02
 				})
 		except:
-			return
-	
+			return logging.error(f"Error on notify clients | {GameSession.__name__} | {self.notify_clients.__name__}.")
+
 	async def process_player_move(self, player):
 		queue_name = f"{self.game}_{player.user_id}"
 		while True:
@@ -280,22 +284,49 @@ class GameSession:
 				print(f"Erro ao processar mensagem: {e}")
 
 	async def finish_game(self):
-		await sync_to_async(GameModel.objects.filter(id=self.gameId).update)(status=1)
-		await sync_to_async(PlayerModel.objects.filter(gameId=self.gameId).update)(
-			is_connected=False,
-			win=Case(
-				When(score__gte=GameConfig.max_score, then=2),
-				When(score__lt=GameConfig.max_score, then=1),
-		))
 		try:
+			await GameModel.objects.filter(id=self.gameId).aupdate(status=1)
+
+			game_session = await GameModel.objects.filter(id=self.gameId).afirst()
+
+			player_scores = await sync_to_async(list)(
+				ScoreModel.objects.filter(gameId=self.gameId).annotate(
+					player_id=F('playerId__id'),
+					player_name=F('playerId__name')
+				)
+			)
+
+			ranked_players = sorted(player_scores, key=lambda ps: (-ps.score, ps.player_id))
+
+			players_ranking = [
+				{"rank": rank + 1, "id": ps.player_id, "score": ps.score}
+				for rank, ps in enumerate(ranked_players)
+			]
+
+			max_score = max(ps.score for ps in ranked_players) if ranked_players else 0
+			top_players = [ps for ps in ranked_players if ps.score == max_score]
+			winner_id = top_players[0].player_id if len(top_players) == 1 else None
+
+			redis_client.rpush(
+                self.sync_session_queue,
+                json.dumps({
+                    "type": "game-over",
+                    "matchId": game_session.matchId,
+                    "gameId": game_session.id,
+					"winner":  winner_id,
+					"players": players_ranking
+                })
+            )
 			await self.channel_layer.group_send(
 				self.game,
 				{
 					"type": "game_finished",
+					"roomType": self.roomType,
+					"winner": winner_id,
 					"expiry": 0.02
 				})
-		except:
-			return
+		except Exception as e:
+			return logger.error(f"Error on Finished | {GameSession.__name__} | {self.finish_game.__name__} | with error: {e}.")
 
 	async def game_loop(self):
 		print("Game loop started")
@@ -311,9 +342,19 @@ class GameSession:
 			await asyncio.sleep(0.02)
 
 	async def send_message_game_start(self):
-		queue_name = f"room_{self.roomId[:8]}"
-		print(f"Sending message game start {queue_name}")
 		try:
+			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+			redis_client.rpush(
+					self.sync_session_queue,
+					json.dumps({
+						"type": "game-started",
+						"matchId": game_session.matchId,
+						"gameId": game_session.id
+					})
+				)
+			
+			queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
+			logging.info(f"\033[93mSending message game start {queue_name}\033[0m")
 			await self.channel_layer.group_send(
 				queue_name,
 				{
@@ -321,32 +362,40 @@ class GameSession:
 					"gameId": self.gameId,
 					"expiry": 0.02
 				})
-		except:
+		except Exception as e:
+			logger.error(f"\033[91mError to send game started message. {e}\033[0m")
 			return True
 
-		game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-	
+
 		i = 180
 		while True:
+			scores = await GameRepository.get_players_in_game(self.gameId)
 			if i == 0:
+				logging.error(f"Error | {GameSession.__name__} | {self.send_message_game_start.__name__} | Timeout to start game.")
 				return True
 			i -= 1
 			all_players_connected = 0
-			players = await sync_to_async(list)(game.players.all())
+			players = [score.playerId for score in scores]
 			for player in players:
+				logging.info(f"Test {player} | {player.is_connected}")
 				if player.is_connected == True:
 					all_players_connected += 1
 			if all_players_connected == self.numberOfPlayers:
+				logging.info(f"Players connected | {all_players_connected}")
 				break
+			game = scores[0].gameId
 			if game.isSinglePlayer == True and all_players_connected == 1:
+				logging.info(f"Players connected | {all_players_connected}")
 				break
 			await asyncio.sleep(2)
+			logging.info(f"Players connected | {scores[0]} | {scores[1]}")
 		return False
 
 	async def startGame(self):
-		print("Game started")
+		logger.info(f"{self.startGame.__name__} Jogo iniciado | Room {self.roomId} | Game {self.gameId}.")
 		await self.add_player_channels()
 		if (await self.send_message_game_start()):
-			return
+			return logging.error(f"Error | {self.startGame.__name__} | {self.startGame.__name__} | Timeout to start game.")
 		await self.game_loop()
 		await self.finish_game()
+		logger.info(f"{self.startGame.__name__} | Finished | Room: {self.roomId} | Game: {self.gameId}.")
