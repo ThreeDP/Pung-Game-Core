@@ -1,4 +1,5 @@
 import random
+import math
 
 class playerColor(enumerate):
 	BLUE = 0
@@ -49,6 +50,8 @@ class GameConfig:
 		{"x": 0, "y": (multiplayer_field_width - multiplayer_height) / 2},
 		{"x": 0, "y": -(multiplayer_field_width - multiplayer_height) / 2},
 	]
+
+	max_distance_ball_player = ball_size + math.sqrt((player_height / 2)**2 + (player_width / 2)**2)
 
 class GameStatus:
 	WAITING = "WAITING"

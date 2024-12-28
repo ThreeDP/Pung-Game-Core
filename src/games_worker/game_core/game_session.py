@@ -4,6 +4,7 @@ import random
 import asyncio
 import os
 import logging
+import math
 
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
@@ -102,29 +103,41 @@ class GameSession:
 			if player.orientation in ["left", "right"]:
 				if (
 					abs(self.ball.x - player.x) <= GameConfig.player_width / 2 + GameConfig.ball_size
-					and abs(self.ball.y - player.y) <= GameConfig.player_height / 2
+					and (abs(self.ball.y - player.y) <= GameConfig.player_height / 2
+					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
 					self.ball_direction["x"] *= -1
 					self.last_player_hit = player
 					field_width = GameConfig.field_width
 					if self.numberOfPlayers == 4:
 						field_width = GameConfig.multiplayer_field_width
-					if player.orientation == "right":
-						self.ball.x = field_width / 2 - GameConfig.player_width - GameConfig.ball_size
-					else:
-						self.ball.x = -(field_width / 2 - GameConfig.player_width - GameConfig.ball_size)
+					if (
+						abs(self.ball.y - player.y) > GameConfig.player_height / 2
+						and math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player
+						and (self.ball.y > player.y and self.ball_direction["y"] < 0
+						or self.ball.y < player.y and self.ball_direction["y"] > 0)
+					):
+						self.ball_direction["y"] *= -1
+					self.ball.x += self.ball_direction["x"]
+					self.ball.y += self.ball_direction["y"]
 
 			elif player.orientation in ["top", "bottom"]:
 				if (
 					abs(self.ball.y - player.y) <= GameConfig.multiplayer_height / 2 + GameConfig.ball_size
-					and abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2
+					and (abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2
+					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
 					self.ball_direction["y"] *= -1
 					self.last_player_hit = player
-					if player.orientation == "top":
-						self.ball.y = GameConfig.field_height / 2 - GameConfig.multiplayer_height - GameConfig.ball_size
-					else:
-						self.ball.y = -(GameConfig.field_height / 2 - GameConfig.multiplayer_height - GameConfig.ball_size)
+					if (
+						abs(self.ball.x - player.x) > GameConfig.multiplayer_width / 2
+						and math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player
+						and (self.ball.x > player.x and self.ball_direction["x"] < 0)
+						or (self.ball.x < player.x and self.ball_direction["x"] > 0)
+					):
+						self.ball_direction["x"] *= -1
+					self.ball.x += self.ball_direction["x"]
+					self.ball.y += self.ball_direction["y"]
 
 	async def ball_reset(self):
 		self.ball.x = 0
