@@ -116,7 +116,6 @@ class GameSession:
 							self.ball_direction["y"] *= -1
 						self.ball.x += self.ball_direction["x"]
 						self.ball.y += self.ball_direction["y"]
-
 			elif player.orientation in ["top", "bottom"]:
 				if (
 					abs(self.ball.y - player.y) <= GameConfig.multiplayer_height / 2 + GameConfig.ball_size
