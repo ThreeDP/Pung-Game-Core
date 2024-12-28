@@ -22,6 +22,7 @@ class TournamentHistoryView(View):
             Prefetch('players', queryset=PlayerModel.objects.all()),
         )
 
+
         for game in games:
             red_player = game.players.filter(color=playerColor.RED).first()
             blue_player = game.players.filter(color=playerColor.BLUE).first()
