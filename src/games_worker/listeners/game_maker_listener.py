@@ -24,7 +24,8 @@ class GameMakerListener:
         logging.info(f"\033[32mgame core recebeu msg: {message}\033[0m")
         data = json.loads(message)
         game_session = await sync_to_async(GameModel.objects.create)(
-            status=0, matchId=data["matchId"], roomId=data["roomId"], isSinglePlayer=data["isSinglePlayer"], created_by=data["ownerId"]
+            status=0, matchId=data["matchId"], roomId=data["roomId"],
+            isSinglePlayer=data["isSinglePlayer"], created_by=data["ownerId"], stage=data['stage']
         )
 
         players = []
