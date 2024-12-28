@@ -1,4 +1,4 @@
-VENV_NAME=core
+WVENV_NAME=core
 
 # Define Colors
 RESET=\033[0m

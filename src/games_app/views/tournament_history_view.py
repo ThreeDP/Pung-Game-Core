@@ -27,7 +27,7 @@ class TournamentHistoryView(View):
         for game in games:
             logger.info(f"\n\n\nGame: {game}\n")
             scores = game.scores.all()
-            if scores.count() >= 2:
+            if scores.count() == 2:
                 red_score = scores.first()
                 blue_score = scores.last()
                 red_player = red_score.playerId
@@ -37,6 +37,7 @@ class TournamentHistoryView(View):
 
                 winner = playerColor.RED if red_score_value > blue_score_value else playerColor.BLUE
                 history.append({
+                    "stage": game.stage,
                     "winner": winner,
                     playerColor.RED: {
                         "name": red_player.name,

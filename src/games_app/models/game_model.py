@@ -12,6 +12,7 @@ class GameModel(models.Model):
     roomId = models.CharField(max_length=64, blank=False)
     isSinglePlayer = models.BooleanField(default=False)
     matchId = models.CharField(max_length=64, blank=False)
+    stage = models.IntegerField(default=1)
 
     def save(self, *args, **kwargs):
         if not self.id:
