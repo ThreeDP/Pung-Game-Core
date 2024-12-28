@@ -40,19 +40,11 @@ class GameMakerListener:
                 logger.error(f"\033[31mError creating player {player['id']}: {str(e)}\033[0m")
                 await sync_to_async(game_session.delete)()
                 return None
+        task = None
         try:
             await sync_to_async(game_session.save)()
             game_job = GameSession(players, game_session.id, data["roomId"], data["roomType"])
             self.game_sessions[data["roomId"]] = game_job
-            task = asyncio.create_task(game_job.startGame())
-            self.running_tasks.add(task)
-            task.add_done_callback(self.running_tasks.discard)
-        except:
-            logger.error(f"\033[31mError creating player {player['id']}: {str(e)}\033[0m")
-            await sync_to_async(game_session.delete)()
-            return None
-
-        try:
             redis_client.rpush(
                 self.sync_session_queue,
                 json.dumps({
@@ -61,14 +53,17 @@ class GameMakerListener:
                     "gameId": game_session.id
                 })
             )
-            logging.info(f"\033[32mGameJob: {game_job}\033[0m")
-            return game_job
+            await asyncio.sleep(0.5)
+            task = asyncio.create_task(game_job.startGame())
+            self.running_tasks.add(task)
+            task.add_done_callback(self.running_tasks.discard)
         except Exception as e:
-            logging.error(f"Error sending game-created message: {str(e)}")
+            logger.error(f"\033[31mError creating player {player['id']}: {str(e)}\033[0m")
             await sync_to_async(game_session.delete)()
             task.cancel()
             self.running_tasks.discard(task)
             return None
+        return game_job
 
     async def listen(self):
         while True:

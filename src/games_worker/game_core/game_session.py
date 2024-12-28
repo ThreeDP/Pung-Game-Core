@@ -137,21 +137,9 @@ class GameSession:
 		asyncio.create_task(self.await_for_new_match())
 
 	async def await_for_new_match(self):
-		try:
-			self.game_status = GameStatus.WAITING
-			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-			redis_client.rpush(
-					self.sync_session_queue,
-					json.dumps({
-						"type": "game-started",
-						"matchId": game_session.matchId,
-						"gameId": game_session.id
-					})
-				)
-			await asyncio.sleep(3)
-			self.game_status = GameStatus.PLAYING
-		except Exception as e:
-			return logger.error(f"Error on await for new match | {GameSession.__name__} | {self.await_for_new_match.__name__} | with error: {e}.")
+		self.game_status = GameStatus.WAITING
+		await asyncio.sleep(3)
+		self.game_status = GameStatus.PLAYING
 
 	async def update_ball_position(self):
 		if self.game_status == GameStatus.PLAYING:
@@ -343,6 +331,15 @@ class GameSession:
 	async def send_message_game_start(self):
 		try:
 			game_session = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+			redis_client.rpush(
+					self.sync_session_queue,
+					json.dumps({
+						"type": "game-started",
+						"matchId": game_session.matchId,
+						"gameId": game_session.id
+					})
+				)
+			
 			queue_name = f"room_{self.roomId[:8]}_{game_session.matchId}"
 			logging.info(f"\033[93mSending message game start {queue_name}\033[0m")
 			await self.channel_layer.group_send(
