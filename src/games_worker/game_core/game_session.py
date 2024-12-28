@@ -107,15 +107,15 @@ class GameSession:
 					field_width = GameConfig.field_width
 					if self.numberOfPlayers == 4:
 						field_width = GameConfig.multiplayer_field_width
-					if (
-						abs(self.ball.y - player.y) > GameConfig.player_height / 2
-						and math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player
-						and (self.ball.y > player.y and self.ball_direction["y"] < 0
-						or self.ball.y < player.y and self.ball_direction["y"] > 0)
-					):
-						self.ball_direction["y"] *= -1
-					self.ball.x += self.ball_direction["x"]
-					self.ball.y += self.ball_direction["y"]
+					if abs(self.ball.y - player.y) <= GameConfig.player_height / 2:
+						self.ball.x = self.ball.x / abs(self.ball.x) * (field_width / 2 - GameConfig.player_width - GameConfig.ball_size)
+					elif math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player:
+						if (self.ball.y > player.y and self.ball_direction["y"] < 0
+							or self.ball.y < player.y and self.ball_direction["y"] > 0
+						):
+							self.ball_direction["y"] *= -1
+						self.ball.x += self.ball_direction["x"]
+						self.ball.y += self.ball_direction["y"]
 
 			elif player.orientation in ["top", "bottom"]:
 				if (
@@ -125,15 +125,15 @@ class GameSession:
 				):
 					self.ball_direction["y"] *= -1
 					self.last_player_hit = player
-					if (
-						abs(self.ball.x - player.x) > GameConfig.multiplayer_width / 2
-						and math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player
-						and (self.ball.x > player.x and self.ball_direction["x"] < 0)
-						or (self.ball.x < player.x and self.ball_direction["x"] > 0)
-					):
-						self.ball_direction["x"] *= -1
-					self.ball.x += self.ball_direction["x"]
-					self.ball.y += self.ball_direction["y"]
+					if abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2:
+						self.ball.y = self.ball.y / abs(self.ball.y) * (GameConfig.multiplayer_field_width / 2 - GameConfig.multiplayer_height - GameConfig.ball_size)
+					elif math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player:
+						if (self.ball.x > player.x and self.ball_direction["x"] < 0
+							or self.ball.x < player.x and self.ball_direction["x"] > 0
+						):
+							self.ball_direction["x"] *= -1
+						self.ball.x += self.ball_direction["x"]
+						self.ball.y += self.ball_direction["y"]
 
 	async def ball_reset(self):
 		self.ball.x = 0
