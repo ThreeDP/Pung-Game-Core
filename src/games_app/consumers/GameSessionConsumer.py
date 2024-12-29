@@ -24,6 +24,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         self.game_channel = f"game_session_{self.gameId}"
         self.player_channel = f"{self.game_channel}_{self.userId}"
 
+        if not self.userId or not self.gameId:
+            await self.close(code=400)
+            return
+
         logger.info(f"{GameSessionConsumer.__name__} | criando conexao | User {self.userId} conectando ao game {self.gameId}.")
 
         try:
