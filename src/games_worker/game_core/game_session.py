@@ -208,7 +208,7 @@ class GameSession:
 			scores = await GameRepository.get_players_in_game(self.gameId)
 			players = [score.playerId for score in scores]
 			game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
-			are_players_connected = all(player.is_connected for player in players)
+			are_players_connected = any(player.is_connected for player in players)
 			if game.isSinglePlayer is True:
 				for player in players:
 					if player.is_connected == True:
@@ -373,7 +373,7 @@ class GameSession:
 			return True
 
 
-		i = 180
+		i = 60
 		while True:
 			scores = await GameRepository.get_players_in_game(self.gameId)
 			if i == 0:

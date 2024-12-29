@@ -103,6 +103,8 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
             })
         )
 
+        redis_client.ltrim(self.player_channel, -3, -1)
+    
     async def update_score(self, event):
         await self.send(text_data=json.dumps(event))
 
