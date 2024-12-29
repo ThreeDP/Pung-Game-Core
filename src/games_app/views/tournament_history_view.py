@@ -23,9 +23,7 @@ class TournamentHistoryView(View):
             Prefetch('scores', queryset=ScoreModel.objects.select_related('playerId').all())
         )
 
-        logger.info(f"\n\n\nNumber of games found: {games.count()}")
         for game in games:
-            logger.info(f"\n\n\nGame: {game}\n")
             scores = game.scores.all()
             if scores.count() == 2:
                 red_score = scores.first()
@@ -52,7 +50,6 @@ class TournamentHistoryView(View):
                         # "profileImage": blue_player.profileImage
                     }
                 })
-        logger.info(f"\nHistory: {history}\nNumbers of games: {len(history)}\n\n\n\n")
         return history
 
 

@@ -207,7 +207,14 @@ class GameSession:
 		while True:
 			scores = await GameRepository.get_players_in_game(self.gameId)
 			players = [score.playerId for score in scores]
-			if all(player.is_connected for player in players) or time >= 180:
+			game = await sync_to_async(GameModel.objects.filter(id=self.gameId).first)()
+			are_players_connected = all(player.is_connected for player in players)
+			if game.isSinglePlayer is True:
+				for player in players:
+					if player.is_connected == True:
+						are_players_connected = True
+						break
+			if are_players_connected or time >= 180:
 				break
 			await asyncio.sleep(1)
 			time += 1

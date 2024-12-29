@@ -36,7 +36,6 @@ class GameMakerListener:
                 if (py is None):
                     py = await sync_to_async(PlayerModel.objects.create)(id=player["id"],name=player["name"], gameId=game_session, color=player["color"])
                 score = await sync_to_async(ScoreModel.objects.create)(playerId=py, gameId=game_session)
-                logging.info(f"\033[32m{score}\033[0m")
             except Exception as e:
                 logger.error(f"\033[31mError creating player {player['id']}: {str(e)}\033[0m")
                 await sync_to_async(game_session.delete)()
@@ -54,7 +53,7 @@ class GameMakerListener:
                     "gameId": game_session.id
                 })
             )
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
             task = asyncio.create_task(game_job.startGame())
             self.running_tasks.add(task)
             task.add_done_callback(self.running_tasks.discard)
