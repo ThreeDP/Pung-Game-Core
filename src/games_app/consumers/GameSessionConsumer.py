@@ -18,9 +18,7 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         self.gameId = self.scope['url_route']['kwargs']['game_id']
-        cookies_header = dict(self.scope['headers']).get(b'cookie', b'').decode('utf-8')
-        cookies = dict(item.split("=") for item in cookies_header.split("; ") if "=" in item)
-        self.userId = cookies.get("userId")
+        self.userId = self.scope['url_route']['kwargs']['user_id']
         self.game_channel = f"game_session_{self.gameId}"
         self.player_channel = f"{self.game_channel}_{self.userId}"
 
