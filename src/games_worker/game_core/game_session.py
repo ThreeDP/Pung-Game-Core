@@ -23,7 +23,6 @@ from games_app.repositories.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
-
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
