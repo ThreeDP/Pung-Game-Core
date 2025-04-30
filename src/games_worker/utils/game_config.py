@@ -32,7 +32,7 @@ class GameConfig:
 	ball_size = min(field_width, field_height) * 0.03  # ~3% do menor lado
 
 	# Player Configuration
-	player_speed = 4
+	player_speed = 0.55
 
 	player_height = field_height * 0.35  # ~40% da altura
 	player_width = field_width * 0.025  # ~2.5% da largura

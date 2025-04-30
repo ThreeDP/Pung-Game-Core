@@ -78,10 +78,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         user = await GameRepository.get_player_by_id_and_by_game_id(self.userId, self.gameId)
 
         directions_by_color = {
-            "0": ["w", "s"],
             "1": ["w", "s"],
-            "2": ["a", "d"],
+            "2": ["w", "s"],
             "3": ["a", "d"],
+            "4": ["a", "d"],
         }
 
         if user.color in directions_by_color and direction in directions_by_color[user.color]:
