@@ -65,6 +65,20 @@ class GameRepository:
         except Exception as e:
             logging.error(f"{GameRepository.__name__} | {GameRepository.get_players_in_game.__name__}  Error getting players in game: {e}")
             return []
+
+    @staticmethod
+    async def get_players_score_in_game(game_id):
+        """ Recupera os jogadores de um jogo de forma assíncrona. """
+        try:
+            scores = await sync_to_async(lambda: list(
+                ScoreModel.objects.filter(gameId=game_id)
+                .select_related('playerId', 'gameId')
+                .all()
+            ))()
+            return scores
+        except Exception as e:
+            logging.error(f"Error getting players in game: {e}")
+            return []
     
     # def UpdateGameStatus(self, game_id, status):
     #     game = GameModel.objects.get(id=game_id)
