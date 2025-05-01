@@ -95,7 +95,7 @@ class GameSession:
 
 	async def check_screen_collision(self, y):
 		if y <= -(GameConfig.field_height / 2 - GameConfig.ball_size) or y >= GameConfig.field_height / 2 - GameConfig.ball_size:
-			self.ball_direction["y"] *= -1
+			self.ball_direction["y"] *= random.uniform(-1, -0.8)
 
 	async def check_player_collision(self, x, y):
 		for player in self.players.values():
@@ -116,7 +116,7 @@ class GameSession:
 						if (self.ball.y > player.y and self.ball_direction["y"] < 0
 							or self.ball.y < player.y and self.ball_direction["y"] > 0
 						):
-							self.ball_direction["y"] *= -1
+							self.ball_direction["y"] *= random.uniform(-1, -0.8)
 						self.ball.x += self.ball_direction["x"]
 						self.ball.y += self.ball_direction["y"]
 			elif player.orientation in ["top", "bottom"]:
@@ -140,10 +140,19 @@ class GameSession:
 	async def ball_reset(self):
 		self.ball.x = 0
 		self.ball.y = 0
+
+		angle = random.uniform(math.radians(30), math.radians(60))
+		speed = random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max)
+		direction = random.choice([-1, 1])
+
 		self.ball_direction = {
-			"x": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
-			"y": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+			"x": direction * speed *math.cos(angle),
+			"y": speed * math.sin(angle)
 		}
+		# self.ball_direction = {
+		# 	"x": random.uniform(-1, 1) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+		# 	"y": random.uniform(-1, 1) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+		# }
 		self.last_player_hit = None
 		asyncio.create_task(self.await_for_new_match())
 

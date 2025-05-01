@@ -22,7 +22,7 @@ class GameConfig:
 
 	# Ball Configuration
 	speed_range_min = 0.4
-	speed_range_max = 0.7
+	speed_range_max = 0.9
 	ball_speed_x_coef = random.choice([-1, 1])
 	ball_speed_y_coef = random.choice([-1, 1])
 	ball_speed_x = ball_speed_x_coef * random.uniform(speed_range_min, speed_range_max)
