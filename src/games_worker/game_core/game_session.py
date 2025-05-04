@@ -105,7 +105,7 @@ class GameSession:
 					and (abs(self.ball.y - player.y) <= GameConfig.player_height / 2
 					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
-					self.ball_direction["x"] *= -1
+					self.ball_direction["x"] *= -1.1
 					self.last_player_hit = player
 					field_width = GameConfig.field_width
 					if self.numberOfPlayers == 4:
@@ -125,7 +125,7 @@ class GameSession:
 					and (abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2
 					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
-					self.ball_direction["y"] *= -1
+					self.ball_direction["y"] *= -1.1
 					self.last_player_hit = player
 					if abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2:
 						self.ball.y = self.ball.y / abs(self.ball.y) * (GameConfig.multiplayer_field_width / 2 - GameConfig.multiplayer_height - GameConfig.ball_size)
@@ -133,7 +133,7 @@ class GameSession:
 						if (self.ball.x > player.x and self.ball_direction["x"] < 0
 							or self.ball.x < player.x and self.ball_direction["x"] > 0
 						):
-							self.ball_direction["x"] *= -1
+							self.ball_direction["x"] *= -1.1
 						self.ball.x += self.ball_direction["x"]
 						self.ball.y += self.ball_direction["y"]
 
@@ -189,13 +189,13 @@ class GameSession:
 			players = (list)(self.players.values())
 			if player is None:
 				if self.ball.x <= -(field_width / 2 - GameConfig.ball_size):
-					color = 0
-				elif self.ball.x >= field_width / 2 - GameConfig.ball_size:
 					color = 1
-				elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.ball_size:
+				elif self.ball.x >= field_width / 2 - GameConfig.ball_size:
 					color = 2
-				elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.ball_size):
+				elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.ball_size:
 					color = 3
+				elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.ball_size):
+					color = 4
 				player = next(filter(lambda player: player.color == color, players), None)
 				for scoredPlayer in players:
 					if scoredPlayer != player:
