@@ -44,18 +44,18 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
 
             await self.accept()
 
-            scores = await GameRepository.get_players_in_game(self.gameId)
-            players = [score.playerId for score in scores]
-            for player in players:
+            scores = await GameRepository.get_players_score_in_game(self.gameId)
+            for score in scores:
                 await self.channel_layer.group_send(
-                self.game_channel,
-                {
-                    "type": "update_score",
-                    "playerColor": player.color,
-                    "playerScore": player.score,
-                    "expiry": 0.02
-                }
+                    self.game_channel,
+                    {
+                        "type": "update_score",
+                        "playerColor": score.playerId.color,  # Acessando corretamente a cor do jogador
+                        "playerScore": score.score,  # Acessando diretamente o score do jogador
+                        "expiry": 0.02
+                    }
                 )
+                
             logger.info(f"{GameSessionConsumer.__name__} | Usuario conectado com sucesso")
         except Exception as e:
             logger.error(f"{GameSessionConsumer.__name__} | Error | {e}")
@@ -78,10 +78,10 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
         user = await GameRepository.get_player_by_id_and_by_game_id(self.userId, self.gameId)
 
         directions_by_color = {
-            "0": ["w", "s"],
             "1": ["w", "s"],
-            "2": ["a", "d"],
+            "2": ["w", "s"],
             "3": ["a", "d"],
+            "4": ["a", "d"],
         }
 
         if user.color in directions_by_color and direction in directions_by_color[user.color]:

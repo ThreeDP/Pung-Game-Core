@@ -23,7 +23,6 @@ from games_app.repositories.game_repository import GameRepository
 
 logger = logging.getLogger(__name__)
 
-
 redis_client = redis.Redis(host=os.environ.get("REDIS_HOST", "localhost"), port=int(os.environ.get("REDIS_PORT", 6379)), db=0, decode_responses=True)
 
 class GameSession:
@@ -96,7 +95,7 @@ class GameSession:
 
 	async def check_screen_collision(self, y):
 		if y <= -(GameConfig.field_height / 2 - GameConfig.ball_size) or y >= GameConfig.field_height / 2 - GameConfig.ball_size:
-			self.ball_direction["y"] *= -1
+			self.ball_direction["y"] *= random.uniform(-1, -0.8)
 
 	async def check_player_collision(self, x, y):
 		for player in self.players.values():
@@ -106,7 +105,7 @@ class GameSession:
 					and (abs(self.ball.y - player.y) <= GameConfig.player_height / 2
 					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
-					self.ball_direction["x"] *= -1
+					self.ball_direction["x"] *= -1.1
 					self.last_player_hit = player
 					field_width = GameConfig.field_width
 					if self.numberOfPlayers == 4:
@@ -117,7 +116,7 @@ class GameSession:
 						if (self.ball.y > player.y and self.ball_direction["y"] < 0
 							or self.ball.y < player.y and self.ball_direction["y"] > 0
 						):
-							self.ball_direction["y"] *= -1
+							self.ball_direction["y"] *= random.uniform(-1, -0.8)
 						self.ball.x += self.ball_direction["x"]
 						self.ball.y += self.ball_direction["y"]
 			elif player.orientation in ["top", "bottom"]:
@@ -126,7 +125,7 @@ class GameSession:
 					and (abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2
 					or math.sqrt((player.x - self.ball.x)**2 + (player.y - self.ball.y)**2) <= GameConfig.max_distance_ball_player)
 				):
-					self.ball_direction["y"] *= -1
+					self.ball_direction["y"] *= -1.1
 					self.last_player_hit = player
 					if abs(self.ball.x - player.x) <= GameConfig.multiplayer_width / 2:
 						self.ball.y = self.ball.y / abs(self.ball.y) * (GameConfig.multiplayer_field_width / 2 - GameConfig.multiplayer_height - GameConfig.ball_size)
@@ -134,17 +133,26 @@ class GameSession:
 						if (self.ball.x > player.x and self.ball_direction["x"] < 0
 							or self.ball.x < player.x and self.ball_direction["x"] > 0
 						):
-							self.ball_direction["x"] *= -1
+							self.ball_direction["x"] *= -1.1
 						self.ball.x += self.ball_direction["x"]
 						self.ball.y += self.ball_direction["y"]
 
 	async def ball_reset(self):
 		self.ball.x = 0
 		self.ball.y = 0
+
+		angle = random.uniform(math.radians(30), math.radians(60))
+		speed = random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max)
+		direction = random.choice([-1, 1])
+
 		self.ball_direction = {
-			"x": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
-			"y": random.choice([-1, 1]) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+			"x": direction * speed *math.cos(angle),
+			"y": speed * math.sin(angle)
 		}
+		# self.ball_direction = {
+		# 	"x": random.uniform(-1, 1) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+		# 	"y": random.uniform(-1, 1) * random.uniform(GameConfig.speed_range_min, GameConfig.speed_range_max),
+		# }
 		self.last_player_hit = None
 		asyncio.create_task(self.await_for_new_match())
 
@@ -181,13 +189,13 @@ class GameSession:
 			players = (list)(self.players.values())
 			if player is None:
 				if self.ball.x <= -(field_width / 2 - GameConfig.ball_size):
-					color = 0
-				elif self.ball.x >= field_width / 2 - GameConfig.ball_size:
 					color = 1
-				elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.ball_size:
+				elif self.ball.x >= field_width / 2 - GameConfig.ball_size:
 					color = 2
-				elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.ball_size):
+				elif self.ball.y >= GameConfig.field_height / 2 - GameConfig.ball_size:
 					color = 3
+				elif self.ball.y <= -(GameConfig.field_height / 2 - GameConfig.ball_size):
+					color = 4
 				player = next(filter(lambda player: player.color == color, players), None)
 				for scoredPlayer in players:
 					if scoredPlayer != player:
