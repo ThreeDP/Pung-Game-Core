@@ -45,16 +45,20 @@ class GameSessionConsumer(AsyncWebsocketConsumer):
             await self.accept()
 
             scores = await GameRepository.get_players_score_in_game(self.gameId)
-            for score in scores:
-                await self.channel_layer.group_send(
-                    self.game_channel,
-                    {
-                        "type": "update_score",
-                        "playerColor": score.playerId.color,  # Acessando corretamente a cor do jogador
-                        "playerScore": score.score,  # Acessando diretamente o score do jogador
-                        "expiry": 0.02
-                    }
-                )
+            scoreboard = {
+                score.playerId.color: {
+                    "score": score.score
+                } for score in scores
+            }
+
+            await self.channel_layer.group_send(
+                self.game_channel,
+                {
+                    "type": "update_score",
+                    "scoreboard": scoreboard,
+                    "expiry": 0.02
+                }
+            )
                 
             logger.info(f"{GameSessionConsumer.__name__} | Usuario conectado com sucesso")
         except Exception as e:

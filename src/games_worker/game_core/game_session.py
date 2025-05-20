@@ -232,13 +232,19 @@ class GameSession:
 
 	async def update_score(self, player):
 		player.score = await self.game_repository.UpdatePlayerScore(player.user_id, self.gameId)
+		players = await self.game_repository.get_players_in_game_for_update(self.gameId)
 		try:
+			scoreboard = {
+				p["color"]: {
+					"score": p["score"]
+				} for p in players
+			}
+
 			await self.channel_layer.group_send(
 				self.game,
 				{
 					"type": "update_score",
-					"playerColor": player.color,
-					"playerScore": player.score,
+					"scoreboard": scoreboard,
 					"expiry": 0.02
 				})
 		except Exception as e:

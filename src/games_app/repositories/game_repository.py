@@ -79,6 +79,25 @@ class GameRepository:
         except Exception as e:
             logging.error(f"Error getting players in game: {e}")
             return []
+
+    async def get_players_in_game_for_update(self, game_id):
+        try:
+            def fetch_scores():
+                scores = ScoreModel.objects.filter(gameId=game_id).select_related('playerId')
+                return [
+                    {
+                        "user_id": s.playerId.id,
+                        "color": s.playerId.color,  # Certifique-se que `color` está no modelo Player
+                        "score": s.score
+                    }
+                    for s in scores
+                ]
+
+            return await sync_to_async(fetch_scores)()
+        except Exception as e:
+            logging.error(f"{GameRepository.__name__} | {GameRepository.get_players_in_game.__name__}  Error getting players in game: {e}")
+            return []
+
     
     # def UpdateGameStatus(self, game_id, status):
     #     game = GameModel.objects.get(id=game_id)
